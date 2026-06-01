@@ -1,0 +1,24 @@
+{
+  "name": "browser",
+  "display_name": "Browser Control",
+  "description": "Open URLs, search the web in browser, open common sites and localhost.",
+  "version": "0.1.0",
+  "actions": [
+    {
+      "name": "open_url",
+      "description": "Open a URL in the default browser.",
+      "parameters": {
+        "url": "string"
+      },
+      "risk": "safe"
+    },
+    {
+      "name": "search_web",
+      "description": "Search the web in the default browser.",
+      "parameters": {
+        "query": "string"
+      },
+      "risk": "safe"
+    }
+  ]
+}

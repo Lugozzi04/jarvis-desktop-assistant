@@ -1,0 +1,28 @@
+{
+  "name": "system",
+  "display_name": "System Monitor",
+  "description": "Monitor system resources: CPU, RAM, disk, GPU. Take screenshots, manage volume.",
+  "version": "0.1.0",
+  "actions": [
+    {
+      "name": "get_stats",
+      "description": "Get CPU, RAM, and disk usage stats.",
+      "parameters": {},
+      "risk": "safe"
+    },
+    {
+      "name": "screenshot",
+      "description": "Take a screenshot.",
+      "parameters": {},
+      "risk": "safe"
+    },
+    {
+      "name": "run_action",
+      "description": "Run a system action (stats, screenshot, volume).",
+      "parameters": {
+        "action": "string"
+      },
+      "risk": "safe"
+    }
+  ]
+}

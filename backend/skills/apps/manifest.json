@@ -1,0 +1,30 @@
+{
+  "name": "apps",
+  "display_name": "Application Launcher",
+  "description": "Open, close, and manage desktop applications. Supports alias-based app launching.",
+  "version": "0.1.0",
+  "actions": [
+    {
+      "name": "open",
+      "description": "Open a configured desktop application by name or alias.",
+      "parameters": {
+        "app_name": "string"
+      },
+      "risk": "safe"
+    },
+    {
+      "name": "close",
+      "description": "Close a running application.",
+      "parameters": {
+        "app_name": "string"
+      },
+      "risk": "confirmation"
+    },
+    {
+      "name": "list",
+      "description": "List configured applications.",
+      "parameters": {},
+      "risk": "safe"
+    }
+  ]
+}

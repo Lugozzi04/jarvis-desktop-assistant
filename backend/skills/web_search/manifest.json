@@ -1,0 +1,24 @@
+{
+  "name": "web_search",
+  "display_name": "Web Search",
+  "description": "Search the web programmatically and return summarized results.",
+  "version": "0.1.0",
+  "actions": [
+    {
+      "name": "search_and_summarize",
+      "description": "Search the web and return a summary of results.",
+      "parameters": {
+        "query": "string"
+      },
+      "risk": "safe"
+    },
+    {
+      "name": "search",
+      "description": "Search the web and return raw results.",
+      "parameters": {
+        "query": "string"
+      },
+      "risk": "safe"
+    }
+  ]
+}

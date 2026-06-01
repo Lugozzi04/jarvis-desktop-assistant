@@ -1,0 +1,40 @@
+{
+  "name": "timers",
+  "display_name": "Timer & Reminder",
+  "description": "Create timers, reminders, and Pomodoro sessions with desktop notifications.",
+  "version": "0.1.0",
+  "actions": [
+    {
+      "name": "create_timer",
+      "description": "Create a countdown timer.",
+      "parameters": {
+        "duration": "string (e.g., 25m, 30s, 1h)",
+        "message": "string (optional)"
+      },
+      "risk": "safe"
+    },
+    {
+      "name": "create_reminder",
+      "description": "Create a reminder at a specific time.",
+      "parameters": {
+        "when": "string (e.g., 18:30, in 10m)",
+        "message": "string"
+      },
+      "risk": "safe"
+    },
+    {
+      "name": "list_active",
+      "description": "List all active timers and reminders.",
+      "parameters": {},
+      "risk": "safe"
+    },
+    {
+      "name": "cancel",
+      "description": "Cancel an active timer.",
+      "parameters": {
+        "timer_id": "string"
+      },
+      "risk": "safe"
+    }
+  ]
+}

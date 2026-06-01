@@ -1,0 +1,33 @@
+{
+  "name": "chat",
+  "display_name": "Chat Skill",
+  "description": "General-purpose chatbot for answering questions, explaining concepts, summarizing text, and conversation.",
+  "version": "0.1.0",
+  "author": "Jarvis",
+  "actions": [
+    {
+      "name": "answer_question",
+      "description": "Answer a general question or engage in conversation.",
+      "parameters": {
+        "question": "string"
+      },
+      "risk": "safe"
+    },
+    {
+      "name": "explain_concept",
+      "description": "Explain a concept in simple terms.",
+      "parameters": {
+        "question": "string"
+      },
+      "risk": "safe"
+    },
+    {
+      "name": "summarize_text",
+      "description": "Summarize a given text.",
+      "parameters": {
+        "text": "string"
+      },
+      "risk": "safe"
+    }
+  ]
+}
