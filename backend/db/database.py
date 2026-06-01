@@ -21,11 +21,18 @@ from sqlalchemy import (
     Text,
     create_engine,
 )
-from sqlalchemy.orm import DeclarativeBase, Session, relationship, sessionmaker
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    Mapped,
+    Session,
+    mapped_column,
+    relationship,
+    sessionmaker,
+)
 
 
 class Base(DeclarativeBase):
-    pass
+    __allow_unmapped__ = True
 
 
 # ── Settings ──
@@ -69,16 +76,17 @@ class SkillRecord(Base):
 
 class AppConfig(Base):
     __tablename__ = "apps"
+    __allow_unmapped__ = True
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(200), unique=True, nullable=False)
-    aliases_json = Column(Text, default="[]")  # JSON array of alias strings
-    path = Column(Text, nullable=True)  # Executable path
-    app_type = Column(String(50), default="desktop_app")
-    icon = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(200), unique=True, nullable=False)
+    aliases_json: Mapped[str] = mapped_column(Text, default="[]")
+    path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    app_type: Mapped[str] = mapped_column(String(50), default="desktop_app")
+    icon: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
-    aliases_rel: list["AppAlias"] = relationship("AppAlias", back_populates="app", cascade="all, delete-orphan")
+    aliases_rel: Mapped[list["AppAlias"]] = relationship("AppAlias", back_populates="app", cascade="all, delete-orphan")
 
     @property
     def aliases(self) -> list[str]:

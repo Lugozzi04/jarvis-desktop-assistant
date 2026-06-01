@@ -21,7 +21,7 @@ from backend.core.logger import logger
 from backend.core.schemas import ActionResult, RiskLevel
 from backend.skills.base import BaseSkill, load_manifest
 
-SKILLS_DIR = Path(__file__).resolve().parent
+SKILLS_DIR = Path(__file__).resolve().parent.parent / "skills"
 
 
 class SkillRegistry:
