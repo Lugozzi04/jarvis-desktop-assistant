@@ -1,0 +1,10 @@
+{
+  "name": "automations",
+  "display_name": "Automation Engine",
+  "description": "Trigger-based automations: time, app events, system events → actions or workflows.",
+  "version": "0.1.0",
+  "actions": [
+    {"name": "list_automations", "description": "List all automations.", "parameters": {}, "risk": "safe"},
+    {"name": "disable_automation", "description": "Disable an automation.", "parameters": {"name": "string"}, "risk": "confirmation"}
+  ]
+}

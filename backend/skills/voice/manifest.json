@@ -1,0 +1,10 @@
+{
+  "name": "voice",
+  "display_name": "Voice System",
+  "description": "Push-to-talk, speech-to-text, text-to-speech, wake word support (future).",
+  "version": "0.1.0",
+  "actions": [
+    {"name": "transcribe", "description": "Transcribe audio to text.", "parameters": {"audio_path": "string"}, "risk": "safe"},
+    {"name": "speak", "description": "Convert text to speech.", "parameters": {"text": "string"}, "risk": "safe"}
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "name": "streaming",
+  "display_name": "Streaming Mode",
+  "description": "OBS, Twitch Dashboard, Spotify, StreamElements, audio/video checklist.",
+  "version": "0.1.0",
+  "actions": [
+    {"name": "start_mode", "description": "Activate streaming mode.", "parameters": {}, "risk": "safe"}
+  ]
+}

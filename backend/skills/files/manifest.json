@@ -1,0 +1,12 @@
+{
+  "name": "files",
+  "display_name": "File Manager",
+  "description": "Search, open, move, rename, and delete files with confirmation for dangerous operations.",
+  "version": "0.1.0",
+  "actions": [
+    {"name": "search_file", "description": "Search for files by name.", "parameters": {"query": "string"}, "risk": "safe"},
+    {"name": "open_file", "description": "Open a file with the default application.", "parameters": {"path": "string"}, "risk": "safe"},
+    {"name": "open_folder", "description": "Open a folder in the file manager.", "parameters": {"path": "string"}, "risk": "safe"},
+    {"name": "delete_file", "description": "Delete a file (requires strong confirmation).", "parameters": {"path": "string"}, "risk": "dangerous"}
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "name": "workflows",
+  "display_name": "Workflow Engine",
+  "description": "Create and execute multi-step workflows like streaming mode, study mode, dev mode.",
+  "version": "0.1.0",
+  "actions": [
+    {"name": "run_workflow", "description": "Execute a named workflow.", "parameters": {"workflow_name": "string"}, "risk": "safe"},
+    {"name": "list_workflows", "description": "List all available workflows.", "parameters": {}, "risk": "safe"}
+  ]
+}

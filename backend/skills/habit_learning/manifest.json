@@ -1,0 +1,11 @@
+{
+  "name": "habit_learning",
+  "display_name": "Habit Learning",
+  "description": "Observes user patterns and suggests automations. Privacy-first, opt-in, never activates without approval.",
+  "version": "0.1.0",
+  "actions": [
+    {"name": "get_suggestions", "description": "Get habit-based suggestions.", "parameters": {}, "risk": "safe"},
+    {"name": "approve_suggestion", "description": "Approve a suggestion.", "parameters": {"suggestion_id": "string"}, "risk": "safe"},
+    {"name": "reject_suggestion", "description": "Reject a suggestion.", "parameters": {"suggestion_id": "string"}, "risk": "safe"}
+  ]
+}

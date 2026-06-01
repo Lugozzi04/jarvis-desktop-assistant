@@ -1,0 +1,9 @@
+{
+  "name": "dev",
+  "display_name": "Developer Mode",
+  "description": "Open projects, run tests, manage git, start dev servers.",
+  "version": "0.1.0",
+  "actions": [
+    {"name": "run_command", "description": "Run a dev command.", "parameters": {"command": "string"}, "risk": "confirmation"}
+  ]
+}

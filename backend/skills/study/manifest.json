@@ -1,0 +1,9 @@
+{
+  "name": "study",
+  "display_name": "Study Mode",
+  "description": "Pomodoro timer, study materials, distraction blocking, session summaries.",
+  "version": "0.1.0",
+  "actions": [
+    {"name": "start_session", "description": "Start a study session.", "parameters": {"subject": "string"}, "risk": "safe"}
+  ]
+}
