@@ -103,12 +103,18 @@
 - [ ] Automatic periodic analysis
 - [ ] ML-based patterns
 
-## M11 — RAG / Document Memory
-- [ ] Document indexing (text extraction, chunking)
-- [ ] Embeddings generation (local model)
-- [ ] Vector store (ChromaDB or LanceDB)
-- [ ] Semantic search
-- [ ] Document Q&A
+## M11 — RAG / Document Memory ✅
+- [x] Document indexing (text extraction, chunking)
+- [x] Embedding providers (Mock, Simple hash-based, Ollama nomic-embed-text)
+- [x] SQLite vector store with cosine similarity search
+- [x] Semantic search
+- [x] Document Q&A with RAG Engine
+- [x] DocumentSkill with slash commands
+- [x] Documents API (8 endpoints)
+- [x] Documents frontend page
+- [x] NL routing patterns
+- [x] 38 tests
+- [x] docs/document-memory.md
 
 ## M12 — Specialized Skills ✅ (base: M12A)
 - [x] OBS Skill (open, status, recording placeholder)
@@ -125,6 +131,25 @@
 ## Future
 - [ ] Tauri desktop wrapper
 - [ ] Wake word detection
+- [ ] Full installer (production-grade)
 - [ ] Multi-language support
 - [ ] Plugin marketplace
 - [ ] Mobile companion app
+- [ ] Discord/Spotify OAuth
+- [ ] OBS WebSocket full integration
+
+## M13 — Desktop Wrapper ✅ (base: Electron)
+- [x] Electron main process (main.js)
+- [x] Preload script with contextBridge
+- [x] Dev mode (Vite + Electron concurrently)
+- [x] Production build (electron-builder configured)
+- [x] Dark background, 1280×860 window
+- [x] docs/desktop-app.md
+
+## M14 — Startup / Launcher ✅ (base)
+- [x] Dev start scripts (Linux, macOS, Windows)
+- [x] Linux systemd user service template
+- [x] Linux .desktop autostart template
+- [x] Windows PowerShell startup + Task Scheduler template
+- [x] macOS LaunchAgent plist template
+- [x] docs/startup.md
