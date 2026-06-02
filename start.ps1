@@ -68,7 +68,12 @@ Write-Host "   ℹ️  A native window will open — NOT a browser tab." -Foregr
 Write-Host ""
 
 Push-Location frontend
-Start-Process npx -ArgumentList "electron", "." -NoNewWindow -Wait
+# npx is a .cmd script on Windows — must run via cmd
+if ($IsWindows -or $env:OS -eq "Windows_NT") {
+    cmd /c "npx electron ."
+} else {
+    npx electron .
+}
 Pop-Location
 
 Write-Host ""
