@@ -7,8 +7,13 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "desktop:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "desktop:build": "npm run build && electron-builder",
+    "electron:dev": "electron .",
+    "start": "vite"
   },
+  "main": "electron/main.js",
   "dependencies": {
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
@@ -27,5 +32,11 @@
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
     "vite": "^8.0.12"
+  },
+  "optionalDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^25.0.0",
+    "concurrently": "^9.0.0",
+    "wait-on": "^8.0.0"
   }
 }
