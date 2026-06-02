@@ -151,8 +151,28 @@ class AssistantOrchestrator:
         return result, False, ""
 
     def _execute_workflow(self, name: str) -> str:
-        """Execute a named workflow (placeholder — M7)."""
-        return f"⚠️ Workflow '{name}' not yet implemented (coming in M7)"
+        """Execute a named workflow using the Workflow Engine."""
+        try:
+            from backend.workflows.engine import workflow_engine
+            result = workflow_engine.run(name)
+            if result.get("status") == "error":
+                return f"❌ {result.get('error', 'Workflow failed')}"
+
+            status = result.get("status", "unknown")
+            total_steps = len(result.get("steps", []))
+            successful = sum(1 for s in result.get("steps", []) if s.get("status") == "success")
+            failed = sum(1 for s in result.get("steps", []) if s.get("status") in ("failed", "skipped"))
+
+            lines = [f"🔄 Workflow '{result.get('workflow_name', name)}' — {status.upper()} ({successful}/{total_steps} ok)"]
+            for step in result.get("steps", []):
+                icon = {"success": "✅", "failed": "❌", "skipped": "⏭️"}.get(step.get("status"), "❓")
+                lines.append(f"  {icon} Step {step.get('order')}: {step.get('skill')}.{step.get('action')}")
+                if step.get("error"):
+                    lines.append(f"     ↳ {step['error']}")
+
+            return "\n".join(lines)
+        except Exception as exc:
+            return f"❌ Workflow engine error: {exc}"
 
     def _handle_chat(self, question: str) -> str:
         """Handle a general chat question (placeholder — M5 LLM Gateway)."""

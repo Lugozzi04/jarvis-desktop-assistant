@@ -2,6 +2,7 @@
 
 Slash commands are parsed WITHOUT an LLM (deterministic, fast).
 Natural language can optionally be routed through a small LLM classifier.
+LLM routing is only attempted after rule-based routing fails.
 
 Architecture:
   1. Check for slash commands → deterministic parse
@@ -125,7 +126,7 @@ RULE_PATTERNS: list[tuple[re.Pattern, str, str]] = [
     (re.compile(r"\b(?:timer)\s+(?:di\s+)?(\d+)\s*(?:min(?:uti)?|m|sec(?:onds?)?|s)?\s*(.+)?", re.IGNORECASE), "timers", "create_timer"),
     (re.compile(r"\b(?:ricordami|remind)\s+(?:di\s+)?(.+)", re.IGNORECASE), "timers", "create_reminder"),
     (re.compile(r"\b(?:cerca|cercami|search|find)\s+(?:online\s+)?(.+)", re.IGNORECASE), "web_search", "search_and_summarize"),
-    (re.compile(r"\b(?:spiega(?:mi)?|explain|cos[\'']?è|what\s+is)\s+(.+)", re.IGNORECASE), "chat", "explain_concept"),
+    (re.compile(r"\b(?:spiega(?:mi)?|explain|cos[\'\"]?è|what\s+is)\s+(.+)", re.IGNORECASE), "chat", "explain_concept"),
     (re.compile(r"\b(?:modalità|mode)\s+(.+)", re.IGNORECASE), "workflows", "run_workflow"),
     (re.compile(r"\b(?:stat(?:us)?\s+(?:sistema|system|pc)|system\s+stats)\b", re.IGNORECASE), "system", "get_stats"),
 ]
@@ -137,7 +138,7 @@ class IntentRouter:
     Pipeline:
       1. Slash commands → deterministic regex match
       2. Rule-based patterns → regex match on natural language
-      3. LLM classification → (future) for complex intents
+      3. LLM classification → (only when available) for complex intents
     """
 
     def route(self, text: str) -> Intent:
@@ -170,7 +171,12 @@ class IntentRouter:
         if result:
             return result
 
-        # ── Step 3: Fallback to chat ──
+        # ── Step 3: Try LLM routing (non-blocking, sync wrapper) ──
+        llm_result = self._try_llm_route(text)
+        if llm_result:
+            return llm_result
+
+        # ── Step 4: Fallback to chat ──
         logger.info("No specific pattern matched — routing to chat")
         return Intent(
             kind=IntentKind.chat,
@@ -220,7 +226,6 @@ class IntentRouter:
                 params: dict[str, Any] = {}
                 groups = match.groups()
                 if groups:
-                    # Use the first capture group as the primary parameter
                     param_names = {
                         ("apps", "open"): "app_name",
                         ("apps", "close"): "app_name",
@@ -243,6 +248,91 @@ class IntentRouter:
                     raw_input=text,
                 )
         return None
+
+    def _try_llm_route(self, text: str) -> Intent | None:
+        """Try LLM-based intent routing as a fallback.
+
+        Only used when rule-based routing fails and LLM is available.
+        Uses a sync wrapper around the async gateway call.
+        """
+        try:
+            from backend.llm.gateway import llm_gateway
+            import asyncio
+
+            # Quick check: is there an available provider?
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as pool:
+                        available = pool.submit(
+                            asyncio.run, llm_gateway.is_available()
+                        ).result(timeout=3)
+                else:
+                    available = asyncio.run(llm_gateway.is_available())
+            except Exception:
+                return None
+
+            if not available:
+                return None
+
+            # Run LLM routing
+            available_skills = skill_registry.skill_names
+            try:
+                if asyncio.get_event_loop().is_running():
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as pool:
+                        result = pool.submit(
+                            asyncio.run,
+                            llm_gateway.route_intent(text, available_skills),
+                        ).result(timeout=15)
+                else:
+                    result = asyncio.run(
+                        llm_gateway.route_intent(text, available_skills)
+                    )
+            except Exception as exc:
+                logger.warning("LLM routing failed: {}", exc)
+                return None
+
+            if result is None:
+                return None
+
+            kind = result.get("kind", "chat")
+            confidence = float(result.get("confidence", 0.5))
+
+            if kind == "clarification":
+                return Intent(
+                    kind=IntentKind.unknown,
+                    confidence=confidence,
+                    raw_input=text,
+                    needs_clarification=True,
+                    clarification_question=result.get("reply", "Can you clarify?"),
+                )
+
+            if kind == "skill":
+                skill_name = result.get("skill", "")
+                action_name = result.get("action", "")
+                if skill_name and action_name:
+                    params = result.get("parameters", {})
+                    logger.info(
+                        "LLM routed: {} → {}.{} confidence={}",
+                        text[:60], skill_name, action_name, confidence,
+                    )
+                    return Intent(
+                        kind=IntentKind.skill,
+                        confidence=min(confidence, 0.8),  # Cap LLM confidence
+                        skill=skill_name,
+                        action=action_name,
+                        parameters=params,
+                        raw_input=text,
+                    )
+
+            # Default: chat
+            return None
+
+        except Exception as exc:
+            logger.debug("LLM routing unavailable: {}", exc)
+            return None
 
 
 # Singleton

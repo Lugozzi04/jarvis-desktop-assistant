@@ -1,4 +1,4 @@
-"""Settings API — read and update configuration."""
+"""Settings API — read and update configuration, LLM status and setup."""
 
 from __future__ import annotations
 
@@ -47,13 +47,13 @@ def get_settings():
 
 @router.post("/settings")
 def update_settings(updates: dict[str, Any]):
-    """Update settings (placeholder — persistent settings in M2)."""
-    return {"status": "received", "updates": updates, "note": "Settings persistence coming in M2"}
+    """Update settings (placeholder — persistent settings coming)."""
+    return {"status": "received", "updates": updates, "note": "Settings persistence coming soon"}
 
 
 @router.post("/settings/llm/test")
 async def test_llm_connection(request: LLMTestRequest):
-    """Test an LLM provider connection."""
+    """Test an LLM provider connection with detailed diagnostics."""
     provider_name = request.provider or settings.llm.default_provider
 
     try:
@@ -124,18 +124,95 @@ def get_logs(limit: int = 50):
 
 @router.get("/llm/status")
 async def llm_status():
-    """Get LLM Gateway status."""
+    """Get detailed LLM Gateway status.
+
+    Returns:
+        For Ollama: reachable, model_available, available_models,
+        recommended_command, setup_required, error messages.
+    """
     try:
         from backend.llm.gateway import llm_gateway
         return await llm_gateway.get_status()
     except Exception as exc:
-        return {"provider": "none", "available": False, "error": str(exc)}
+        return {
+            "provider": "none",
+            "available": False,
+            "ready": False,
+            "error": str(exc),
+        }
+
+
+@router.get("/llm/recommended")
+async def llm_recommended():
+    """Get recommended model configuration."""
+    try:
+        from backend.llm.gateway import llm_gateway
+        return await llm_gateway.get_recommended_models()
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+@router.get("/llm/ollama-setup-guide")
+async def ollama_setup_guide():
+    """Get Ollama local setup guide."""
+    try:
+        from backend.llm.gateway import llm_gateway
+        return await llm_gateway.get_ollama_setup_guide()
+    except Exception as exc:
+        return {"error": str(exc)}
 
 
 @router.get("/workflows")
 def list_workflows():
-    """List workflows (placeholder — M7)."""
-    return {"workflows": [], "note": "Workflow engine coming in M7"}
+    """List workflows."""
+    try:
+        from backend.workflows.engine import workflow_engine
+        return {"workflows": workflow_engine.list_all()}
+    except Exception as exc:
+        return {"workflows": [], "error": str(exc)}
+
+
+@router.post("/workflows")
+def create_workflow(data: dict[str, Any]):
+    """Create a new workflow."""
+    try:
+        from backend.workflows.engine import workflow_engine
+        return workflow_engine.create(data)
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+@router.get("/workflows/{workflow_id}")
+def get_workflow(workflow_id: str):
+    """Get a workflow by ID."""
+    try:
+        from backend.workflows.engine import workflow_engine
+        wf = workflow_engine.get(workflow_id)
+        if wf is None:
+            return {"error": "Workflow not found"}
+        return wf
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+@router.post("/workflows/{workflow_id}/run")
+def run_workflow(workflow_id: str):
+    """Execute a workflow."""
+    try:
+        from backend.workflows.engine import workflow_engine
+        return workflow_engine.run(workflow_id)
+    except Exception as exc:
+        return {"status": "error", "error": str(exc)}
+
+
+@router.delete("/workflows/{workflow_id}")
+def delete_workflow(workflow_id: str):
+    """Delete a workflow."""
+    try:
+        from backend.workflows.engine import workflow_engine
+        return workflow_engine.delete(workflow_id)
+    except Exception as exc:
+        return {"error": str(exc)}
 
 
 @router.get("/automations")
