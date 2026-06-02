@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Jarvis Desktop Assistant
+Comment=AI-powered desktop assistant
+Exec=bash -c "cd ~/jarvis-desktop-assistant && bash scripts/dev_start_linux.sh"
+Icon=~/jarvis-desktop-assistant/frontend/public/favicon.ico
+Terminal=false
+Type=Application
+Categories=Utility;AI;
+StartupNotify=true

@@ -1,0 +1,21 @@
+# Jarvis Backend — systemd user service
+# Copy to: ~/.config/systemd/user/jarvis-backend.service
+# Enable:  systemctl --user enable --now jarvis-backend.service
+# Logs:    journalctl --user -u jarvis-backend -f
+
+[Unit]
+Description=Jarvis Desktop Assistant Backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/jarvis-desktop-assistant
+ExecStart=%h/jarvis-desktop-assistant/.venv/bin/uvicorn backend.main:app --host 127.0.0.1 --port 8400
+Restart=on-failure
+RestartSec=5
+Environment="PATH=%h/jarvis-desktop-assistant/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=%h/jarvis-desktop-assistant/.env
+
+[Install]
+WantedBy=default.target
