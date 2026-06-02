@@ -139,6 +139,9 @@ from backend.api.settings import router as settings_router
 from backend.api.voice import router as voice_router
 from backend.api.habits import router as habits_router
 from backend.api.documents import router as documents_router
+from backend.api.setup import router as setup_router
+from backend.api.diagnostics import router as diagnostics_router
+from backend.api.pending_actions import router as pending_actions_router
 
 app.include_router(chat_router, prefix="/api")
 app.include_router(command_router, prefix="/api")
@@ -147,3 +150,6 @@ app.include_router(settings_router, prefix="/api")
 app.include_router(voice_router, prefix="/api")
 app.include_router(habits_router, prefix="/api")
 app.include_router(documents_router)
+app.include_router(setup_router)
+app.include_router(diagnostics_router)
+app.include_router(pending_actions_router)

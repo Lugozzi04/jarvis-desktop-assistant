@@ -143,8 +143,30 @@ class AssistantOrchestrator:
         if risk:
             perm = permission_guard.check(risk, f"{skill_name}.{action}")
             if perm["needs_confirmation"]:
-                logger.info("Confirmation required for {}.{}", skill_name, action)
-                return None, True, perm["confirmation_message"]
+                if risk.value == "dangerous":
+                    # Queue as pending action instead of blocking
+                    from backend.core.pending_actions import pending_queue
+                    reason = f"Action {skill_name}.{action} requires approval (risk: {risk.value})"
+                    pending_queue.add(
+                        skill=skill_name,
+                        action=action,
+                        parameters=parameters,
+                        risk=risk.value,
+                        reason=reason,
+                        source="user",
+                    )
+                    logger.info("Dangerous action queued: {}.{} requires approval", skill_name, action)
+                    from backend.core.schemas import ActionResult
+                    return ActionResult(
+                        success=False,
+                        skill=skill_name,
+                        action=action,
+                        risk=risk.value,
+                        result="⏳ This action requires approval. Check Pending Actions in the dashboard.",
+                    ), False, ""
+                else:
+                    logger.info("Confirmation required for {}.{}", skill_name, action)
+                    return None, True, perm["confirmation_message"]
 
         # Execute
         result = skill_registry.execute(skill_name, action, parameters)
