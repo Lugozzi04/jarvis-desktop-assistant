@@ -1,0 +1,52 @@
+{
+  "name": "documents",
+  "display_name": "Document Memory",
+  "description": "Index local documents and ask questions about them (RAG). Supports .txt, .md, .py, .pdf and more.",
+  "version": "1.0.0",
+  "author": "Jarvis",
+  "enabled": true,
+  "actions": [
+    {
+      "name": "index_file",
+      "description": "Index a single file into document memory",
+      "parameters": {"path": "Absolute path to the file"},
+      "risk": "confirmation"
+    },
+    {
+      "name": "index_folder",
+      "description": "Index all supported files in a folder",
+      "parameters": {"folder_path": "Absolute path to the folder", "recursive": "bool"},
+      "risk": "confirmation"
+    },
+    {
+      "name": "search_documents",
+      "description": "Search indexed documents by semantic similarity",
+      "parameters": {"query": "Search query", "top_k": "Number of results (default 5)"},
+      "risk": "safe"
+    },
+    {
+      "name": "ask_documents",
+      "description": "Ask a question and get an answer based on your documents",
+      "parameters": {"question": "Your question about the documents", "top_k": "Number of chunks to search (default 5)"},
+      "risk": "safe"
+    },
+    {
+      "name": "list_documents",
+      "description": "List all indexed documents",
+      "parameters": {},
+      "risk": "safe"
+    },
+    {
+      "name": "remove_document",
+      "description": "Remove a document from the index",
+      "parameters": {"document_id": "ID of the document to remove"},
+      "risk": "dangerous"
+    },
+    {
+      "name": "clear_index",
+      "description": "Clear all documents and chunks from the index",
+      "parameters": {},
+      "risk": "dangerous"
+    }
+  ]
+}
