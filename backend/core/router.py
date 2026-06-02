@@ -116,6 +116,59 @@ SLASH_PATTERNS: list[tuple[re.Pattern, str, str, dict[str, Any] | None]] = [
         "automations", "disable_automation",
         lambda m: {"name": m.group(1).strip()},
     ),
+
+    # /obs <action>
+    (
+        re.compile(r"^/obs\s+open", re.IGNORECASE),
+        "obs", "open",
+        lambda m: {},
+    ),
+
+    # /discord <action>
+    (
+        re.compile(r"^/discord\s+open", re.IGNORECASE),
+        "discord", "open",
+        lambda m: {},
+    ),
+    (
+        re.compile(r"^/discord\s+web", re.IGNORECASE),
+        "discord", "open_web",
+        lambda m: {},
+    ),
+
+    # /spotify <action> <query>
+    (
+        re.compile(r"^/spotify\s+open", re.IGNORECASE),
+        "spotify", "open",
+        lambda m: {},
+    ),
+    (
+        re.compile(r"^/spotify\s+search\s+(.+)", re.IGNORECASE),
+        "spotify", "search",
+        lambda m: {"query": m.group(1).strip()},
+    ),
+
+    # /github <action> <arg>
+    (
+        re.compile(r"^/github\s+status(?:\s+(.+))?", re.IGNORECASE),
+        "github", "git_status",
+        lambda m: {"path": m.group(1).strip() if m.group(1) else "."},
+    ),
+    (
+        re.compile(r"^/github\s+open\s+(.+)", re.IGNORECASE),
+        "github", "open_repo",
+        lambda m: {"repo": m.group(1).strip()},
+    ),
+    (
+        re.compile(r"^/github\s+clone\s+(.+)", re.IGNORECASE),
+        "github", "clone_repo",
+        lambda m: {"url": m.group(1).strip()},
+    ),
+    (
+        re.compile(r"^/github\s+issues\s+(.+)", re.IGNORECASE),
+        "github", "open_issues",
+        lambda m: {"repo": m.group(1).strip()},
+    ),
 ]
 
 # ── Rule-Based Pattern Routing ──
@@ -129,6 +182,15 @@ RULE_PATTERNS: list[tuple[re.Pattern, str, str]] = [
     (re.compile(r"\b(?:spiega(?:mi)?|explain|cos[\'\"]?è|what\s+is)\s+(.+)", re.IGNORECASE), "chat", "explain_concept"),
     (re.compile(r"\b(?:modalità|mode)\s+(.+)", re.IGNORECASE), "workflows", "run_workflow"),
     (re.compile(r"\b(?:stat(?:us)?\s+(?:sistema|system|pc)|system\s+stats)\b", re.IGNORECASE), "system", "get_stats"),
+
+    # ── Specialized skills ──
+    (re.compile(r"\b(?:apri|open)\s+obs\b", re.IGNORECASE), "obs", "open"),
+    (re.compile(r"\b(?:apri|open)\s+discord\b", re.IGNORECASE), "discord", "open"),
+    (re.compile(r"\b(?:apri|open)\s+spotify\b", re.IGNORECASE), "spotify", "open"),
+    (re.compile(r"\b(?:cerca|search|trova)\s+(?:su\s+)?spotify\s+(.+)", re.IGNORECASE), "spotify", "search"),
+    (re.compile(r"\b(?:git\s+status|stato\s+git)\b", re.IGNORECASE), "github", "git_status"),
+    (re.compile(r"\b(?:apri|open)\s+(?:repo|il\s+repo)\s+(.+)", re.IGNORECASE), "github", "open_repo"),
+    (re.compile(r"\b(?:clona|clone)\s+(?:repo\s+)?(.+)", re.IGNORECASE), "github", "clone_repo"),
 ]
 
 

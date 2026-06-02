@@ -1,0 +1,28 @@
+{
+  "name": "discord",
+  "display_name": "Discord",
+  "version": "0.1.0",
+  "description": "Open Discord app or web, navigate to servers",
+  "actions": [
+    {
+      "name": "open",
+      "description": "Open Discord desktop app",
+      "parameters": {},
+      "risk": "safe"
+    },
+    {
+      "name": "open_web",
+      "description": "Open Discord in browser",
+      "parameters": {},
+      "risk": "safe"
+    },
+    {
+      "name": "open_server",
+      "description": "Open Discord server in browser",
+      "parameters": {
+        "url": "string"
+      },
+      "risk": "safe"
+    }
+  ]
+}

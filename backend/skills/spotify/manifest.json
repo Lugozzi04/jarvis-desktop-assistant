@@ -1,0 +1,30 @@
+{
+  "name": "spotify",
+  "display_name": "Spotify",
+  "version": "0.1.0",
+  "description": "Open Spotify app or search Spotify Web",
+  "actions": [
+    {
+      "name": "open",
+      "description": "Open Spotify desktop app",
+      "parameters": {},
+      "risk": "safe"
+    },
+    {
+      "name": "search",
+      "description": "Search Spotify for tracks/artists/albums",
+      "parameters": {
+        "query": "string"
+      },
+      "risk": "safe"
+    },
+    {
+      "name": "search_artist",
+      "description": "Search for an artist on Spotify",
+      "parameters": {
+        "query": "string"
+      },
+      "risk": "safe"
+    }
+  ]
+}

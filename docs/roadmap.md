@@ -79,21 +79,29 @@
 - [x] 5 seed automations
 - [x] 38 new tests (101 total)
 
-## M9 — Voice System
-- [ ] Push-to-talk UI
-- [ ] faster-whisper integration
-- [ ] Edge TTS integration
-- [ ] Voice settings page
-- [ ] Microphone test
-- [ ] Transcription preview + edit
+## M9 — Voice System ✅ (base)
+- [x] STT provider architecture (mock + faster-whisper ready)
+- [x] TTS provider architecture (mock ready, edge-tts planned)
+- [x] Push-to-talk UI (MediaRecorder + file upload)
+- [x] Voice API endpoints (transcribe, speak, command, status)
+- [x] Voice frontend page with setup guide
+- [x] Faster-whisper provider (code ready, no model download on VPS)
+- [x] docs/voice-system.md
+- [ ] Edge TTS real provider
+- [ ] Wake word detection
+- [ ] Streaming transcription
 
-## M10 — Habit Learning
-- [ ] Event tracking (app opens, workflows, timers)
-- [ ] Pattern detection (frequent combinations, time patterns)
-- [ ] Suggestion generation
-- [ ] Approve/reject UI
-- [ ] Privacy controls
-- [ ] Opt-in/opt-out
+## M10 — Habit Learning ✅ (lightweight)
+- [x] HabitEvent tracking (skill_action, workflow_run, automation_run, app_opened, timer_created)
+- [x] PatternAnalyzer (repeated actions, co-occurring, repeated workflows, app→workflow)
+- [x] Suggestion generation (automation + workflow types)
+- [x] Accept/dismiss suggestion with auto-creation
+- [x] Frontend Habits page (pending/accepted/dismissed, analyze button)
+- [x] Privacy controls (local only, clear events, no chat content)
+- [x] API endpoints (events, suggestions, analyze, accept, dismiss, clear)
+- [x] docs/habit-learning.md
+- [ ] Automatic periodic analysis
+- [ ] ML-based patterns
 
 ## M11 — RAG / Document Memory
 - [ ] Document indexing (text extraction, chunking)
@@ -102,12 +110,17 @@
 - [ ] Semantic search
 - [ ] Document Q&A
 
-## M12 — Specialized Skills
-- [ ] DiscordSkill (status, messages, channels)
-- [ ] OBSSkill (scene switching, recording)
-- [ ] SpotifySkill (play, pause, search)
-- [ ] GitHubSkill (status, PRs, issues)
-- [ ] DevSkill (project management, test running)
+## M12 — Specialized Skills ✅ (base: M12A)
+- [x] OBS Skill (open, status, recording placeholder)
+- [x] Discord Skill (open, open_web, open_server)
+- [x] Spotify Skill (open, search, search_artist)
+- [x] GitHub Skill (open_repo, issues, git_status, clone/commit/push confirmation)
+- [x] Slash commands for all 4 skills
+- [x] NL rule-based routing for all 4 skills
+- [x] docs/specialized-skills.md
+- [ ] OBS WebSocket real integration
+- [ ] Discord bot/oauth
+- [ ] Spotify OAuth
 
 ## Future
 - [ ] Tauri desktop wrapper

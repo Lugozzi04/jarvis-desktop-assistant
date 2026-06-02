@@ -1,0 +1,32 @@
+{
+  "name": "obs",
+  "display_name": "OBS Studio",
+  "version": "0.1.0",
+  "description": "Control OBS Studio \u2014 open, check status, recording controls",
+  "actions": [
+    {
+      "name": "open",
+      "description": "Open OBS Studio",
+      "parameters": {},
+      "risk": "safe"
+    },
+    {
+      "name": "check_status",
+      "description": "Check OBS connection status",
+      "parameters": {},
+      "risk": "safe"
+    },
+    {
+      "name": "start_recording",
+      "description": "Start recording (confirmation required)",
+      "parameters": {},
+      "risk": "confirmation"
+    },
+    {
+      "name": "stop_recording",
+      "description": "Stop recording (confirmation required)",
+      "parameters": {},
+      "risk": "confirmation"
+    }
+  ]
+}

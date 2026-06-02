@@ -1,0 +1,54 @@
+{
+  "name": "github",
+  "display_name": "GitHub",
+  "version": "0.1.0",
+  "description": "GitHub operations \u2014 open repos, git status, clone, commit, push",
+  "actions": [
+    {
+      "name": "open_repo",
+      "description": "Open a GitHub repository in browser",
+      "parameters": {
+        "repo": "string"
+      },
+      "risk": "safe"
+    },
+    {
+      "name": "open_issues",
+      "description": "Open issues for a repository",
+      "parameters": {
+        "repo": "string"
+      },
+      "risk": "safe"
+    },
+    {
+      "name": "git_status",
+      "description": "Show git status in current repo",
+      "parameters": {
+        "path": "string"
+      },
+      "risk": "safe"
+    },
+    {
+      "name": "clone_repo",
+      "description": "Clone a git repository",
+      "parameters": {
+        "url": "string"
+      },
+      "risk": "confirmation"
+    },
+    {
+      "name": "commit_all",
+      "description": "Stage and commit all changes",
+      "parameters": {
+        "message": "string"
+      },
+      "risk": "confirmation"
+    },
+    {
+      "name": "push",
+      "description": "Push commits to remote",
+      "parameters": {},
+      "risk": "confirmation"
+    }
+  ]
+}
