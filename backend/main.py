@@ -141,6 +141,7 @@ from backend.api.habits import router as habits_router
 from backend.api.documents import router as documents_router
 from backend.api.setup import router as setup_router
 from backend.api.diagnostics import router as diagnostics_router
+from backend.api.apps_config import router as apps_config_router
 from backend.api.pending_actions import router as pending_actions_router
 
 app.include_router(chat_router, prefix="/api")
@@ -153,3 +154,4 @@ app.include_router(documents_router)
 app.include_router(setup_router)
 app.include_router(diagnostics_router)
 app.include_router(pending_actions_router)
+app.include_router(apps_config_router, prefix="/api")
