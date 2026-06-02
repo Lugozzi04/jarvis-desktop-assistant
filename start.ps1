@@ -1,4 +1,4 @@
-# Jarvis — One-click launcher (Windows)
+﻿# Jarvis — One-click launcher (Windows)
 # Run: .\start.ps1
 # Does everything: check deps → install → build → start backend → open browser
 
