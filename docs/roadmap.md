@@ -67,13 +67,17 @@
 - [ ] Workflow templates
 - [ ] Workflow history and logs
 
-## M8 — Automations
-- [ ] Trigger engine (time, app events, system events)
-- [ ] Condition evaluator
-- [ ] Automation runner
-- [ ] UI for creating/editing automations
-- [ ] Enable/disable per automation
-- [ ] Automation log
+## M8 — Automations ✅
+- [x] Trigger engine (time, interval, startup, manual; app_opened placeholder)
+- [x] Condition evaluator (always, time_after, time_before, day_of_week)
+- [x] Automation runner with PermissionGuard integration
+- [x] Background scheduler (15s tick, threading)
+- [x] UI for listing, detail, run, enable/disable, delete
+- [x] Create form with presets + JSON editor
+- [x] Enable/disable per automation
+- [x] Engine status card
+- [x] 5 seed automations
+- [x] 38 new tests (101 total)
 
 ## M9 — Voice System
 - [ ] Push-to-talk UI
