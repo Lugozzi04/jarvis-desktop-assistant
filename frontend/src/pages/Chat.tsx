@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import type { ChatResponse } from '../api';
+import { TimerBar } from '../TimerBar';
 
 interface Message {
   id: number;
@@ -82,6 +83,7 @@ function Chat() {
 
   return (
     <div className="chat-container" style={{ height: 'calc(100vh - var(--topbar-height) - 60px)' }}>
+      <TimerBar />
       <div className="chat-messages">
         {messages.map(msg => (
           <div key={msg.id} className={`message ${msg.role}`}>

@@ -25,15 +25,16 @@ class AppSkill(BaseSkill):
 
     # Built-in fallback apps (if no DB config)
     _DEFAULT_APPS: dict[str, dict[str, Any]] = {
-        "discord": {"aliases": ["discord", "chat", "dc"], "command": "discord"},
+        "discord": {"aliases": ["discord", "chat", "dc", "discordia"], "command": "discord"},
         "spotify": {"aliases": ["spotify", "music", "musica"], "command": "spotify"},
-        "vscode": {"aliases": ["vscode", "code", "codice", "vs code"], "command": "code"},
-        "obs": {"aliases": ["obs", "stream", "live", "streaming"], "command": "obs"},
-        "terminal": {"aliases": ["terminal", "term", "shell", "cmd"], "command": "gnome-terminal"},
-        "calculator": {"aliases": ["calculator", "calc", "calcolatrice"], "command": "gnome-calculator"},
-        "files": {"aliases": ["files", "explorer", "file", "cartelle"], "command": "nautilus"},
-        "browser": {"aliases": ["browser", "chrome", "firefox", "edge"], "command": "firefox"},
-        "settings": {"aliases": ["settings", "impostazioni", "config"], "command": "gnome-control-center"},
+        "vscode": {"aliases": ["vscode", "code", "codice", "vs code", "visual studio"], "command": "code"},
+        "obs": {"aliases": ["obs", "stream", "live", "streaming", "registrazione"], "command": "obs"},
+        "terminal": {"aliases": ["terminal", "term", "shell", "cmd", "powershell", "prompt"], "command": "wt.exe"},
+        "calculator": {"aliases": ["calculator", "calc", "calcolatrice"], "command": "calc.exe"},
+        "files": {"aliases": ["files", "explorer", "file", "cartelle", "esplora file"], "command": "explorer.exe"},
+        "browser": {"aliases": ["browser", "chrome", "firefox", "edge", "internet"], "command": "start https://google.com"},
+        "settings": {"aliases": ["settings", "impostazioni", "config", "controllo"], "command": "start ms-settings:"},
+        "notepad": {"aliases": ["notepad", "note", "blocco note", "editor", "appunti"], "command": "notepad.exe"},
     }
 
     def execute(self, action: str, parameters: dict[str, Any]) -> ActionResult:
@@ -67,8 +68,15 @@ class AppSkill(BaseSkill):
 
         try:
             system = platform.system()
-            if system == "Windows":
-                os.startfile(command)  # type: ignore[attr-defined]
+            if command.startswith("start "):
+                # shell built-in — always use subprocess
+                subprocess.Popen(command, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            elif system == "Windows":
+                # Try os.startfile first (handles .exe, .lnk, URLs), fall back to subprocess
+                try:
+                    os.startfile(command)
+                except Exception:
+                    subprocess.Popen(command, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             elif system == "Darwin":
                 subprocess.Popen(["open", "-a", command], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             else:  # Linux

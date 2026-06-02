@@ -18,6 +18,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from backend.core.assistant import assistant
 from backend.core.config import settings
@@ -143,6 +144,7 @@ from backend.api.setup import router as setup_router
 from backend.api.diagnostics import router as diagnostics_router
 from backend.api.apps_config import router as apps_config_router
 from backend.api.pending_actions import router as pending_actions_router
+from backend.api.timers import router as timers_router
 
 app.include_router(chat_router, prefix="/api")
 app.include_router(command_router, prefix="/api")
@@ -155,3 +157,20 @@ app.include_router(setup_router)
 app.include_router(diagnostics_router)
 app.include_router(pending_actions_router)
 app.include_router(apps_config_router, prefix="/api")
+app.include_router(timers_router, prefix="/api")
+
+
+# ── Serve Frontend SPA (only if built) ──
+
+FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+
+if FRONTEND_DIST.is_dir():
+    # Mount entire dist as SPA — StaticFiles with html=True handles:
+    #   /          → index.html
+    #   /chat      → index.html (SPA fallback)
+    #   /assets/*  → actual files
+    # Previously registered routes (/health, /api/*) remain active.
+    app.mount("/", StaticFiles(directory=str(FRONTEND_DIST), html=True), name="frontend_spa")
+    logger.info("🎨 Frontend SPA mounted from {}", FRONTEND_DIST)
+else:
+    logger.info("ℹ️  Frontend not built — API-only mode. Run 'npm run build' to enable UI.")

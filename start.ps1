@@ -65,14 +65,15 @@ Start-Process -NoNewWindow .\.venv\Scripts\python.exe -ArgumentList "-m", "uvico
 Start-Sleep -Seconds 3
 
 # ── Step 4: Open browser ──
-Write-Host "[5/5] Opening Jarvis..." -ForegroundColor Yellow
+Write-Host "[5/5] Opening Jarvis... $([Environment]::NewLine)   http://localhost:8400" -ForegroundColor Cyan
 Start-Process "http://localhost:8400"
 
 Write-Host ""
 Write-Host "✅ Jarvis is running!" -ForegroundColor Green
-Write-Host "   Backend: http://localhost:8400" -ForegroundColor Cyan
-if (Get-Command node -ErrorAction SilentlyContinue) {
-    Write-Host "   Frontend: http://localhost:5173 (run: cd frontend && npm run dev)" -ForegroundColor Cyan
-}
+Write-Host "   UI:  http://localhost:8400" -ForegroundColor Cyan
+Write-Host "   API: http://localhost:8400/health" -ForegroundColor DarkGray
+Write-Host ""
+Write-Host "💡 To enable LLM chat: open Ollama from Start Menu → ollama pull qwen2.5:7b" -ForegroundColor Yellow
+Write-Host "   Slash commands work without LLM: /open notepad, /search query, /timer 5m test" -ForegroundColor DarkGray
 Write-Host ""
 pause

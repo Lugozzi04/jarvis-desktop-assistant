@@ -197,26 +197,49 @@ class AssistantOrchestrator:
             return f"❌ Workflow engine error: {exc}"
 
     def _handle_chat(self, question: str) -> str:
-        """Handle a general chat question (placeholder — M5 LLM Gateway)."""
-        # For now, return a helpful fallback
+        """Handle a general chat question using the LLM Gateway or ChatSkill."""
         if not question:
             return "How can I help you?"
 
-        # Check if LLM is configured
-        if not settings.llm.default_provider:
-            return (
-                "I'm in offline mode — no LLM configured. "
-                "Set up Ollama or another provider in .env to enable smart chat.\n\n"
-                "In the meantime, try slash commands:\n"
-                "• /open <app> — Open an application\n"
-                "• /search <query> — Search the web\n"
-                "• /timer <duration> <message> — Set a timer\n"
-                "• /system stats — Show system stats"
-            )
+        # Try ChatSkill first (uses LLM Gateway internally)
+        try:
+            result = skill_registry.execute("chat", "answer_question", {"question": question})
+            if result and result.success:
+                return result.result or "I processed your request."
+        except Exception:
+            pass
 
+        # Fallback: try LLM gateway directly
+        try:
+            from backend.llm.gateway import llm_gateway
+            import asyncio
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    future = pool.submit(asyncio.run, llm_gateway.chat([
+                        {"role": "system", "content": "You are JARVIS, a helpful desktop assistant. Respond concisely in the user's language."},
+                        {"role": "user", "content": question},
+                    ]))
+                    return future.result(timeout=30)
+            else:
+                return asyncio.run(llm_gateway.chat([
+                    {"role": "system", "content": "You are JARVIS, a helpful desktop assistant. Respond concisely in the user's language."},
+                    {"role": "user", "content": question},
+                ]))
+        except Exception as exc:
+            logger.warning("LLM chat failed: {}", exc)
+
+        # Ultimate fallback
         return (
-            "💬 Chat mode — LLM Gateway coming in M5. "
-            "For now, use slash commands for actions."
+            "I'm in offline mode — no LLM provider is available. "
+            "For smart chat, install Ollama and run: ollama pull qwen2.5:7b\n\n"
+            "In the meantime, use slash commands:\n"
+            "• /open notepad — Open Notepad\n"
+            "• /search query — Search the web\n"
+            "• /timer 5m test — Set a 5-minute timer\n"
+            "• /system stats — Show system stats\n"
+            "• /ask question — Ask a question via LLM"
         )
 
     def _format_result(self, result: ActionResult) -> str:
