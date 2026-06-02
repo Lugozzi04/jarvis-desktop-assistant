@@ -19,10 +19,13 @@ class LLMConfig(BaseSettings):
 
     default_provider: str = "ollama"
     default_model: str = "llama3.1:8b"
+    base_url: str = "http://localhost:11434"
+    api_key: str = ""
     router_model: str = "phi3:mini"
     planner_model: str = "qwen2.5:7b"
     allow_cloud: bool = False
     cloud_for_complex: bool = False
+    timeout: int = 60
 
 
 class OllamaConfig(BaseSettings):

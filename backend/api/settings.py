@@ -5,10 +5,19 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter
+from pydantic import BaseModel
 
 from backend.core.config import settings
+from backend.core.logger import logger
 
 router = APIRouter(tags=["settings"])
+
+
+class LLMTestRequest(BaseModel):
+    provider: str = ""
+    base_url: str = ""
+    api_key: str = ""
+    model: str = ""
 
 
 @router.get("/settings")
@@ -23,6 +32,7 @@ def get_settings():
             "default_provider": settings.llm.default_provider,
             "default_model": settings.llm.default_model,
             "allow_cloud": settings.llm.allow_cloud,
+            "has_api_key": bool(settings.llm.api_key),
         },
         "voice": {
             "enabled": settings.voice_enabled,
@@ -38,5 +48,97 @@ def get_settings():
 @router.post("/settings")
 def update_settings(updates: dict[str, Any]):
     """Update settings (placeholder — persistent settings in M2)."""
-    # In the full implementation, this would write to DB
     return {"status": "received", "updates": updates, "note": "Settings persistence coming in M2"}
+
+
+@router.post("/settings/llm/test")
+async def test_llm_connection(request: LLMTestRequest):
+    """Test an LLM provider connection."""
+    provider_name = request.provider or settings.llm.default_provider
+
+    try:
+        from backend.llm.gateway import llm_gateway
+
+        # Configure temporarily if needed
+        if request.provider and request.provider not in llm_gateway._providers:
+            try:
+                llm_gateway.configure(
+                    provider_name=provider_name,
+                    base_url=request.base_url or "",
+                    api_key=request.api_key or "",
+                    model=request.model or settings.llm.default_model,
+                )
+            except Exception as exc:
+                return {
+                    "success": False,
+                    "provider": provider_name,
+                    "error": f"Failed to configure provider: {exc}",
+                }
+
+        result = await llm_gateway.test_connection(provider_name)
+        return result
+    except Exception as exc:
+        logger.error("LLM test failed: {}", exc)
+        return {"success": False, "provider": provider_name, "error": str(exc)}
+
+
+@router.get("/logs")
+def get_logs(limit: int = 50):
+    """Get recent audit logs from the database."""
+    try:
+        from backend.db.database import AuditLog, get_session_factory
+
+        factory = get_session_factory()
+        db = factory()
+        try:
+            rows = (
+                db.query(AuditLog)
+                .order_by(AuditLog.id.desc())
+                .limit(limit)
+                .all()
+            )
+            return {
+                "logs": [
+                    {
+                        "id": r.id,
+                        "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+                        "input_raw": r.input_raw,
+                        "intent_kind": r.intent_kind,
+                        "skill": r.skill,
+                        "action": r.action,
+                        "risk": r.risk,
+                        "result_success": r.result_success,
+                        "result_summary": r.result_summary,
+                        "error": r.error,
+                        "duration_ms": r.duration_ms,
+                    }
+                    for r in rows
+                ]
+            }
+        finally:
+            db.close()
+    except Exception as exc:
+        logger.error("Failed to fetch logs: {}", exc)
+        return {"logs": [], "error": str(exc)}
+
+
+@router.get("/llm/status")
+async def llm_status():
+    """Get LLM Gateway status."""
+    try:
+        from backend.llm.gateway import llm_gateway
+        return await llm_gateway.get_status()
+    except Exception as exc:
+        return {"provider": "none", "available": False, "error": str(exc)}
+
+
+@router.get("/workflows")
+def list_workflows():
+    """List workflows (placeholder — M7)."""
+    return {"workflows": [], "note": "Workflow engine coming in M7"}
+
+
+@router.get("/automations")
+def list_automations():
+    """List automations (placeholder — M8)."""
+    return {"automations": [], "note": "Automation engine coming in M8"}

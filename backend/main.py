@@ -42,6 +42,14 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.error("Failed to initialize subsystems: {}", exc)
 
+    # Initialize LLM Gateway
+    try:
+        from backend.llm.gateway import llm_gateway
+        llm_gateway.initialize_from_config()
+        logger.info("LLM Gateway initialized")
+    except Exception as exc:
+        logger.warning("LLM Gateway initialization skipped: {}", exc)
+
     yield
 
     # Shutdown
@@ -53,7 +61,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Jarvis Desktop Assistant",
     description="Modular AI desktop assistant — control your PC, chat, execute commands, manage workflows and automations.",
-    version="0.1.0",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
@@ -74,9 +82,9 @@ def root():
     """Health check and basic info."""
     return {
         "name": "Jarvis Desktop Assistant",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "status": "running",
-        "skills_loaded": len(assistant._initialized and _get_skills() or []),
+        "skills_loaded": len(_get_skills()),
     }
 
 
@@ -89,13 +97,21 @@ def _get_skills() -> list[str]:
 
 
 @app.get("/health")
-def health():
-    """Detailed health check."""
+async def health():
+    """Detailed health check with LLM status."""
+    llm_status = {"provider": "none", "available": False, "model": ""}
+    try:
+        from backend.llm.gateway import llm_gateway
+        llm_status = await llm_gateway.get_status()
+    except Exception:
+        pass
+
     return {
         "status": "ok",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "env": settings.env,
         "skills": _get_skills(),
+        "llm": llm_status,
     }
 
 
