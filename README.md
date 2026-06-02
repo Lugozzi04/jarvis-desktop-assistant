@@ -1,122 +1,53 @@
-# 🤖 Jarvis Desktop Assistant
+# ⚡ JARVIS Desktop Assistant
 
-**Modular AI desktop assistant** — control your PC, chat intelligently, execute commands, manage workflows, automations, voice, memory, and extensible skills/plugins.
+Modular AI desktop assistant — control your PC, chat intelligently, execute commands, manage workflows, automations, voice, memory, and extensible skills/plugins.
 
-> ⚠️ **Alpha Stage** — Active development. Core architecture and basic skills are functional. Full LLM integration, voice, workflows, automations, and UI coming in upcoming milestones.
-
----
-
-## 🎯 Vision
-
-Jarvis is NOT a simple chatbot. It's a **modular desktop assistant framework** where:
-
-- The **core** is small and stable — routing, permissions, logging, skill registry
-- Every **capability** is a skill/plugin — independently developed and tested
-- **No hardcoding** of app-specific logic in the core
-- **Local-first** with optional cloud LLM
-- **Secure by design** — risk-based permission system
+**Status:** M1-M5 complete, M6 (Frontend) complete — usable MVP with React UI and LLM Gateway.
 
 ---
 
-## 🏗️ Architecture
+## 📊 Architecture
 
 ```
-User Input (text / voice / slash command / trigger)
-    ↓
-Input Normalizer
-    ↓
-Slash Command Parser (deterministic, no LLM)
-    ↓
-Intent Router (rules + optional LLM classifier)
-    ↓
-Planner (single action or multi-step workflow)
-    ↓
-Permission Guard (safe / confirmation / dangerous)
-    ↓
-Skill Registry → Skill Executor
-    ↓
-Logger / Audit Log
-    ↓
-Response Formatter → UI / voice
-```
-
-### Core Principles
-
-1. **Core NEVER contains app-specific logic** (Spotify, Discord, OBS, etc.)
-2. **Everything is a skill** — each with manifest, actions, risk levels
-3. **Slash commands use zero LLM** — deterministic regex parsing
-4. **LLM only when it adds value** — local-first, cloud optional
-5. **Risk-based permissions** — safe (auto), confirmation (ask), dangerous (strong confirm)
-6. **Every action is logged** — full audit trail
-
----
-
-## 📁 Project Structure
-
-```
-jarvis-desktop-assistant/
-├── README.md
-├── pyproject.toml
-├── .env.example
-├── .gitignore
-│
-├── backend/
-│   ├── main.py              # FastAPI entry point
-│   ├── api/                  # REST API routers
-│   │   ├── chat.py           # POST /api/chat
-│   │   ├── command.py        # POST /api/command
-│   │   ├── skills.py         # GET/POST /api/skills
-│   │   └── settings.py       # GET/POST /api/settings
-│   │
-│   ├── core/                 # Stable core (never modified for specific skills)
-│   │   ├── assistant.py      # Orchestrator — ties everything together
-│   │   ├── config.py         # Pydantic settings
-│   │   ├── errors.py         # Structured error types
-│   │   ├── logger.py         # Loguru-based logging + audit
-│   │   ├── permissions.py    # Risk-based permission guard
-│   │   ├── registry.py       # Skill discovery & loading
-│   │   ├── router.py         # Intent router (slash + rules + LLM)
-│   │   └── schemas.py        # Pydantic models for all actions
-│   │
-│   ├── llm/                  # LLM Gateway (provider-agnostic)
-│   │   ├── gateway.py
-│   │   └── providers/
-│   │
-│   ├── skills/               # Modular skills (each in its own folder)
-│   │   ├── base.py           # BaseSkill abstract class
-│   │   ├── apps/             # Application launcher
-│   │   ├── browser/          # URL opener & web search
-│   │   ├── chat/             # Conversational AI
-│   │   ├── web_search/       # Programmatic web search
-│   │   ├── files/            # File management
-│   │   ├── system/           # System monitoring
-│   │   ├── timers/           # Timers & reminders
-│   │   ├── workflows/        # Multi-step workflows
-│   │   ├── automations/      # Trigger-based automations
-│   │   ├── voice/            # STT & TTS
-│   │   ├── dev/              # Developer tools
-│   │   ├── study/            # Study mode
-│   │   ├── streaming/        # Streaming mode
-│   │   └── habit_learning/   # Pattern detection
-│   │
-│   ├── voice/                # Voice pipeline (STT, TTS, wake word)
-│   ├── memory/               # User profile, habits, RAG
-│   ├── db/                   # SQLAlchemy models (SQLite MVP)
-│   └── utils/
-│
-├── frontend/                 # React + Vite desktop UI
-│   ├── package.json
+frontend/                    # React + Vite + TypeScript
 │   └── src/
-│
-├── docs/                     # Comprehensive documentation
-│   ├── architecture.md
-│   ├── plugin-system.md
-│   ├── llm-strategy.md
-│   ├── voice-system.md
-│   ├── security.md
-│   └── roadmap.md
-│
-└── tests/                    # Unit & integration tests
+│       ├── api.ts           # API client
+│       ├── Layout.tsx        # Sidebar + Topbar
+│       └── pages/           # Dashboard, Chat, Skills, Logs, Settings, LLM Settings
+
+backend/
+├── main.py                  # FastAPI app, health, CORS
+├── api/
+│   ├── chat.py              # POST /api/chat  — natural language input
+│   ├── command.py           # POST /api/command — slash commands
+│   ├── skills.py            # GET /api/skills, GET /api/skills/{name}
+│   └── settings.py          # GET /api/settings, POST /api/settings/llm/test, GET /api/logs
+├── core/
+│   ├── config.py            # Pydantic settings from .env
+│   ├── schemas.py           # Intent, ActionResult, RiskLevel, LogEntry
+│   ├── router.py            # Slash parser + rule-based NL router
+│   ├── registry.py          # Skill auto-discovery and execution
+│   ├── permissions.py       # Risk-based permission guard
+│   ├── assistant.py         # Orchestrator pipeline
+│   └── logger.py            # Loguru structured logging
+├── llm/
+│   ├── gateway.py           # LLM Gateway — provider routing, JSON mode, intent routing
+│   └── providers/
+│       ├── base.py          # BaseLLMProvider abstract class
+│       ├── ollama.py        # Ollama local provider
+│       ├── openai_compatible.py  # OpenAI/DeepSeek/LM Studio compatible
+│       └── mock.py          # Mock provider for tests
+├── skills/
+│   ├── base.py              # BaseSkill — every skill inherits from this
+│   ├── chat/                # ChatSkill — uses LLM Gateway when available
+│   ├── apps/                # AppSkill — open/close/list desktop apps
+│   ├── browser/             # BrowserSkill — open URLs
+│   ├── web_search/          # WebSearchSkill — DuckDuckGo search
+│   ├── system/              # SystemSkill — CPU, RAM, disk stats
+│   ├── timers/              # TimerSkill — countdown timers + notifications
+│   └── ...                  # 8 placeholder skills for future milestones
+├── db/                      # SQLAlchemy models (SQLite)
+└── voice/                   # Voice pipeline (M9)
 ```
 
 ---
@@ -145,19 +76,21 @@ uv pip install -r requirements.txt
 
 # Configure
 cp .env.example .env
-# Edit .env — set LLM provider, voice settings, etc.
+# Edit .env — set LLM provider, model, API keys
 
 # Run
-python -m uvicorn backend.main:app --host 127.0.0.1 --port 8400 --reload
+uvicorn backend.main:app --host 127.0.0.1 --port 8400 --reload
 ```
 
-### Frontend Setup (coming in M6)
+### Frontend Setup
 
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
+
+Open http://localhost:5173 in your browser.
 
 ### Test the API
 
@@ -173,15 +106,63 @@ curl -X POST http://localhost:8400/api/chat \
 # List skills
 curl http://localhost:8400/api/skills
 
-# System stats
-curl -X POST http://localhost:8400/api/chat \
+# Test LLM connection
+curl -X POST http://localhost:8400/api/settings/llm/test \
   -H "Content-Type: application/json" \
-  -d '{"message": "/system stats"}'
+  -d '{"provider": "ollama", "base_url": "http://localhost:11434", "model": "llama3.1:8b"}'
 ```
 
 ---
 
-## 🔌 Adding a New Skill
+## 🤖 LLM Configuration
+
+### Ollama (Local — free)
+
+```bash
+# Install Ollama
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Pull a model
+ollama pull llama3.1:8b
+
+# Set in .env
+LLM_DEFAULT_PROVIDER=ollama
+LLM_DEFAULT_MODEL=llama3.1:8b
+OLLAMA_BASE_URL=http://localhost:11434
+```
+
+### OpenAI
+
+```env
+LLM_DEFAULT_PROVIDER=openai_compatible
+LLM_DEFAULT_MODEL=gpt-4o-mini
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_API_KEY=sk-...
+```
+
+### DeepSeek
+
+```env
+LLM_DEFAULT_PROVIDER=openai_compatible
+LLM_DEFAULT_MODEL=deepseek-chat
+LLM_BASE_URL=https://api.deepseek.com/v1
+LLM_API_KEY=sk-...
+```
+
+### LM Studio / LocalAI
+
+```env
+LLM_DEFAULT_PROVIDER=openai_compatible
+LLM_DEFAULT_MODEL=local-model
+LLM_BASE_URL=http://localhost:1234/v1
+LLM_API_KEY=not-needed
+```
+
+Configure and test from the **LLM Settings page** in the UI (`/settings/llm`).
+
+---
+
+## 🧩 Adding a New Skill
 
 Skills are **auto-discovered** — just create a folder with two files:
 
@@ -213,14 +194,11 @@ from backend.core.schemas import ActionResult
 class MySkill(BaseSkill):
     def execute(self, action, parameters):
         if action == "do_something":
-            return ActionResult(
-                success=True, skill="myskill", action="do_something",
-                risk="safe", result="Done!"
-            )
-        return ActionResult(success=False, error="Unknown action")
+            return self._result(action, success=True, result="Done!")
+        return self._result(action, success=False, error="Unknown action")
 ```
 
-**That's it.** Restart the backend and your skill is automatically loaded.
+**That's it.** Restart and your skill is automatically loaded.
 
 ---
 
@@ -236,20 +214,19 @@ Every action has a risk level:
 
 ---
 
-## 📊 Current Status (M1-M2 Complete)
+## 📊 Current Status
 
-- ✅ Project structure + GitHub repo
-- ✅ FastAPI backend with health/chat/command/skills/settings endpoints
-- ✅ SQLite database with full schema (settings, skills, apps, workflows, automations, logs, habits)
-- ✅ Skill system: BaseSkill, manifest loader, SkillRegistry
+- ✅ FastAPI backend with all API endpoints
 - ✅ 6 functional skills: apps, browser, chat, web_search, system, timers
-- ✅ 8 placeholder skills: files, workflows, automations, voice, dev, study, streaming, habit_learning
-- ✅ Intent Router: deterministic slash commands + rule-based natural language
-- ✅ Permission Guard: risk-based (safe/confirmation/dangerous)
-- ✅ Structured logging + audit trail
-- ✅ Pydantic schemas for all actions/intents/results
-- ✅ LLM Gateway skeleton (Ollama provider ready)
-- ✅ Comprehensive documentation
+- ✅ Skill system: auto-discovery, registry, permission guard
+- ✅ Intent Router: slash commands + rule-based NL (Italian + English)
+- ✅ LLM Gateway: Ollama + OpenAI-compatible + Mock providers
+- ✅ LLM JSON mode + intent routing
+- ✅ ChatSkill connected to real LLM Gateway
+- ✅ React/Vite/TypeScript frontend with 8 pages
+- ✅ Logs, health, LLM test API endpoints
+- ✅ 42 passing tests (29 original + 12 LLM)
+- ✅ Frontend builds without errors
 
 ---
 
@@ -259,12 +236,12 @@ Every action has a risk level:
 |---|---|---|
 | M1 | ✅ | Project foundation — structure, FastAPI, SQLite, config |
 | M2 | ✅ | Modular skill system — BaseSkill, Registry, Permissions |
-| M3 | 🚧 | Complete remaining basic skills |
-| M4 | 🚧 | Command pipeline hardening, edge cases |
-| M5 | 📋 | LLM Gateway full implementation |
-| M6 | 📋 | UI MVP — React frontend with dashboard, chat, skills |
-| M7 | 📋 | Workflow engine |
-| M8 | 📋 | Automation engine |
+| M3 | ✅ | Basic skills (6 functional) |
+| M4 | ✅ | Command pipeline hardening |
+| M5 | ✅ | LLM Gateway — Ollama + OpenAI-compatible + Mock providers |
+| M6 | ✅ | Frontend React/Vite/TypeScript — Dashboard, Chat, Skills, Settings, LLM Settings |
+| M7 | 📋 | Workflow engine — multi-step automation |
+| M8 | 📋 | Automation engine — triggers, conditions |
 | M9 | 📋 | Voice system (STT + TTS) |
 | M10 | 📋 | Habit learning |
 | M11 | 📋 | RAG / document memory |
@@ -275,7 +252,5 @@ Every action has a risk level:
 ## 📄 License
 
 MIT — see LICENSE file.
-
----
 
 **Built with ❤️ for personal productivity and AI experimentation.**
