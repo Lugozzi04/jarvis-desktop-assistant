@@ -112,6 +112,13 @@ export interface PendingAction {
   reason: string;
   parameters: Record<string, unknown>;
   created_at: string;
+  status: string; // pending | approved | rejected | executed | failed | expired
+  resolved_at: string | null;
+  reject_reason: string | null;
+  result: Record<string, unknown> | null;
+  error: string | null;
+  source: string;
+  timeout_minutes: number;
 }
 
 export interface PendingActionsResponse {
@@ -287,6 +294,14 @@ export const api = {
   pendingActions: () => fetchAPI<PendingActionsResponse>('/api/pending-actions'),
   approvePendingAction: (id: string) =>
     fetchAPI<{ status: string; id: string }>(`/api/pending-actions/${id}/approve`, { method: 'POST' }),
-  rejectPendingAction: (id: string) =>
-    fetchAPI<{ status: string; id: string }>(`/api/pending-actions/${id}/reject`, { method: 'POST' }),
+  rejectPendingAction: (id: string, reason?: string) =>
+    fetchAPI<{ status: string; id: string; reject_reason: string | null }>(
+      `/api/pending-actions/${id}/reject`,
+      { method: 'POST', body: JSON.stringify({ reason: reason ?? null }) },
+    ),
+  cleanupPendingActions: (retentionHours?: number) =>
+    fetchAPI<{ status: string; removed: number; retention_hours: number }>(
+      '/api/pending-actions/cleanup',
+      { method: 'POST', body: JSON.stringify({ retention_hours: retentionHours ?? 1 }) },
+    ),
 };

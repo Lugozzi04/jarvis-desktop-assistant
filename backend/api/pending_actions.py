@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
+from pydantic import BaseModel
+
 from fastapi import APIRouter, HTTPException
 
 from backend.core.pending_actions import pending_queue
 from backend.core.logger import logger
 
 router = APIRouter(prefix="/api/pending-actions", tags=["pending-actions"])
+
+
+class RejectBody(BaseModel):
+    reason: str | None = None
+
+
+class CleanupBody(BaseModel):
+    retention_hours: int = 1
 
 
 @router.get("")
@@ -38,7 +48,7 @@ def get_count():
 
 @router.get("/{action_id}")
 def get_action(action_id: str):
-    """Get a specific action by ID."""
+    """Get a specific action by ID with full status and details."""
     pa = pending_queue.get(action_id)
     if not pa:
         raise HTTPException(status_code=404, detail="Action not found")
@@ -52,27 +62,37 @@ def approve_action(action_id: str, execute: bool = False):
         raise HTTPException(status_code=404, detail="Action not found or already resolved")
 
     if execute:
-        pending_queue.execute_approved(action_id)
+        pending_queue.execute(action_id)
         pa = pending_queue.get(action_id)
         logger.info("Pending action approved and executed: {}", action_id)
-        return {"status": "approved_executed", "result": pa.result if pa else None}
+        return {"status": "approved_executed", "result": pa.result if pa else None, "id": action_id}
 
     logger.info("Pending action approved: {}", action_id)
-    return {"status": "approved"}
+    return {"status": "approved", "id": action_id}
 
 
 @router.post("/{action_id}/reject")
-def reject_action(action_id: str):
-    """Reject a pending action."""
-    if not pending_queue.reject(action_id):
+def reject_action(action_id: str, body: RejectBody | None = None):
+    """Reject a pending action with an optional rejection reason."""
+    reason = body.reason if body else None
+    if not pending_queue.reject(action_id, reason=reason):
         raise HTTPException(status_code=404, detail="Action not found or already resolved")
 
-    logger.info("Pending action rejected: {}", action_id)
-    return {"status": "rejected"}
+    logger.info("Pending action rejected: {} (reason={})", action_id, reason)
+    return {"status": "rejected", "id": action_id, "reject_reason": reason}
+
+
+@router.post("/cleanup")
+def cleanup_actions(body: CleanupBody | None = None):
+    """Remove resolved actions older than retention_hours (default 1)."""
+    hours = body.retention_hours if body else 1
+    removed = pending_queue.auto_cleanup(retention_hours=hours)
+    logger.info("Manual cleanup removed {} actions (retention: {}h)", removed, hours)
+    return {"status": "cleaned", "removed": removed, "retention_hours": hours}
 
 
 @router.post("/clear-resolved")
 def clear_resolved():
     """Remove resolved actions older than 1 hour."""
-    pending_queue.clear_resolved()
-    return {"status": "cleared"}
+    removed = pending_queue.clear_resolved()
+    return {"status": "cleared", "removed": removed}

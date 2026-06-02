@@ -29,8 +29,9 @@ class PendingAction(BaseModel):
     reason: str = ""
     source: str = "user"  # user | automation | workflow
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
-    status: str = "pending"  # pending | approved | rejected | expired
+    status: str = "pending"  # pending | approved | rejected | executed | failed | expired
     resolved_at: str | None = None
+    reject_reason: str | None = None
     result: dict[str, Any] | None = None
     error: str | None = None
     timeout_minutes: int = 60  # auto-reject after this many minutes
@@ -116,16 +117,21 @@ class PendingActionsQueue:
             logger.info("Pending action approved: {}.{} ({})", pa.skill, pa.action, action_id)
             return True
 
-    def reject(self, action_id: str) -> bool:
-        """Reject a pending action. Returns True if found and rejected."""
+    def reject(self, action_id: str, reason: str | None = None) -> bool:
+        """Reject a pending action with an optional rejection reason.
+        Returns True if found and rejected."""
         with self._lock:
             pa = self._actions.get(action_id)
             if not pa or pa.status != "pending":
                 return False
             pa.status = "rejected"
             pa.resolved_at = datetime.utcnow().isoformat()
+            pa.reject_reason = reason
             self._save()
-            logger.info("Pending action rejected: {}.{} ({})", pa.skill, pa.action, action_id)
+            logger.info(
+                "Pending action rejected: {}.{} ({}) reason={}",
+                pa.skill, pa.action, action_id, reason,
+            )
             return True
 
     def get_pending(self) -> list[PendingAction]:
@@ -153,8 +159,9 @@ class PendingActionsQueue:
     def count(self) -> int:
         return len(self.get_pending())
 
-    def execute_approved(self, action_id: str):
-        """Execute an approved action and store the result."""
+    def execute(self, action_id: str) -> None:
+        """Execute an approved action and store the result with success/failed status.
+        Sets status to 'executed' on success, 'failed' on error."""
         pa = self._actions.get(action_id)
         if not pa or pa.status != "approved":
             return
@@ -164,20 +171,34 @@ class PendingActionsQueue:
             result = skill_registry.execute(pa.skill, pa.action, pa.parameters)
             pa.result = result.model_dump() if result else {"success": False}
             if not result or not result.success:
+                pa.status = "failed"
                 pa.error = result.error if result else "Action failed"
+            else:
+                pa.status = "executed"
         except Exception as e:
+            pa.status = "failed"
             pa.error = str(e)
             pa.result = {"success": False}
 
+        pa.resolved_at = datetime.utcnow().isoformat()
         self._save()
+        logger.info(
+            "Pending action executed: {}.{} ({}) status={}",
+            pa.skill, pa.action, action_id, pa.status,
+        )
 
-    def clear_resolved(self):
-        """Remove resolved actions older than 1 hour."""
+    def execute_approved(self, action_id: str) -> None:
+        """Legacy wrapper — delegates to execute()."""
+        self.execute(action_id)
+
+    def auto_cleanup(self, retention_hours: int = 1) -> int:
+        """Clear resolved actions (approved/rejected/executed/failed/expired)
+        older than `retention_hours`. Returns number of actions removed."""
         with self._lock:
-            cutoff = datetime.utcnow().timestamp() - 3600
+            cutoff = datetime.utcnow().timestamp() - (retention_hours * 3600)
             to_remove = []
             for k, a in self._actions.items():
-                if a.status in ("approved", "rejected", "expired") and a.resolved_at:
+                if a.status in ("approved", "rejected", "executed", "failed", "expired") and a.resolved_at:
                     try:
                         ts = datetime.fromisoformat(a.resolved_at).timestamp()
                         if ts < cutoff:
@@ -188,6 +209,13 @@ class PendingActionsQueue:
                 del self._actions[k]
             if to_remove:
                 self._save()
+                logger.info("Auto-cleanup removed {} resolved actions (retention: {}h)", len(to_remove), retention_hours)
+            return len(to_remove)
+
+    def clear_resolved(self) -> int:
+        """Remove resolved actions older than 1 hour.
+        Legacy method — delegates to auto_cleanup()."""
+        return self.auto_cleanup(retention_hours=1)
 
     def _auto_reject_expired(self):
         now = datetime.utcnow()
