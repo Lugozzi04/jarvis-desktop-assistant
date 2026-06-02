@@ -695,8 +695,8 @@ class AutomationEngine:
                     for auto in list(self._automations.values()):
                         if not auto.enabled:
                             continue
-                        if auto.trigger.type in ("mode_is",):
-                            continue  # mode_is not yet implemented
+                        if auto.trigger.type in ("mode_is", "manual"):
+                            continue  # mode_is not yet implemented; manual only via API
 
                         try:
                             context = {

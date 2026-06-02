@@ -1,0 +1,187 @@
+[
+  {
+    "id": "daily-study-reminder",
+    "name": "Daily Study Reminder",
+    "description": "Remind me to study every day at 18:00",
+    "enabled": false,
+    "trigger": {
+      "type": "time",
+      "config": {
+        "time": "18:00",
+        "days": [
+          "mon",
+          "tue",
+          "wed",
+          "thu",
+          "fri",
+          "sat",
+          "sun"
+        ],
+        "interval_minutes": null,
+        "app_name": null,
+        "mode_name": null
+      }
+    },
+    "conditions": [],
+    "actions": [
+      {
+        "type": "skill_action",
+        "skill": "timers",
+        "action": "create_reminder",
+        "workflow_id": null,
+        "parameters": {
+          "message": "\ud83d\udcda Time to study! Focus for at least 1 hour."
+        },
+        "risk": "safe"
+      }
+    ],
+    "created_at": "2026-06-02T13:52:46.546241",
+    "updated_at": "2026-06-02T13:52:46.546246",
+    "last_run_at": null,
+    "run_count": 0,
+    "last_status": null
+  },
+  {
+    "id": "startup-llm-status",
+    "name": "Startup LLM Status Check",
+    "description": "Check LLM status when Jarvis starts",
+    "enabled": true,
+    "trigger": {
+      "type": "startup",
+      "config": {
+        "time": null,
+        "days": [],
+        "interval_minutes": null,
+        "app_name": null,
+        "mode_name": null
+      }
+    },
+    "conditions": [],
+    "actions": [
+      {
+        "type": "chat_response",
+        "skill": null,
+        "action": null,
+        "workflow_id": null,
+        "parameters": {
+          "message": "\u26a1 JARVIS started. Check LLM Settings to verify your provider is connected."
+        },
+        "risk": "safe"
+      }
+    ],
+    "created_at": "2026-06-02T13:52:46.546332",
+    "updated_at": "2026-06-02T13:52:46.546341",
+    "last_run_at": null,
+    "run_count": 0,
+    "last_status": null
+  },
+  {
+    "id": "dev-session-manual",
+    "name": "Dev Session Manual",
+    "description": "Run Dev Session workflow manually from automations",
+    "enabled": false,
+    "trigger": {
+      "type": "manual",
+      "config": {
+        "time": null,
+        "days": [],
+        "interval_minutes": null,
+        "app_name": null,
+        "mode_name": null
+      }
+    },
+    "conditions": [],
+    "actions": [
+      {
+        "type": "workflow",
+        "skill": null,
+        "action": null,
+        "workflow_id": "dev-session",
+        "parameters": {},
+        "risk": "safe"
+      }
+    ],
+    "created_at": "2026-06-02T13:52:46.546417",
+    "updated_at": "2026-06-02T13:52:46.546421",
+    "last_run_at": null,
+    "run_count": 0,
+    "last_status": null
+  },
+  {
+    "id": "obs-live-workflow",
+    "name": "OBS Live Workflow",
+    "description": "Run Live Setup workflow when OBS opens (after 18:00)",
+    "enabled": false,
+    "trigger": {
+      "type": "app_opened",
+      "config": {
+        "time": null,
+        "days": [],
+        "interval_minutes": null,
+        "app_name": "OBS",
+        "mode_name": null
+      }
+    },
+    "conditions": [
+      {
+        "type": "time_after",
+        "config": {
+          "time": "18:00",
+          "days": [],
+          "app_name": null,
+          "mode_name": null
+        },
+        "operator": "equals"
+      }
+    ],
+    "actions": [
+      {
+        "type": "workflow",
+        "skill": null,
+        "action": null,
+        "workflow_id": "live-setup",
+        "parameters": {},
+        "risk": "safe"
+      }
+    ],
+    "created_at": "2026-06-02T13:52:46.546515",
+    "updated_at": "2026-06-02T13:52:46.546519",
+    "last_run_at": null,
+    "run_count": 0,
+    "last_status": null
+  },
+  {
+    "id": "hydration-reminder",
+    "name": "Hydration Reminder",
+    "description": "Remind me to drink water every 30 minutes",
+    "enabled": false,
+    "trigger": {
+      "type": "interval",
+      "config": {
+        "time": null,
+        "days": [],
+        "interval_minutes": 30,
+        "app_name": null,
+        "mode_name": null
+      }
+    },
+    "conditions": [],
+    "actions": [
+      {
+        "type": "notification",
+        "skill": null,
+        "action": null,
+        "workflow_id": null,
+        "parameters": {
+          "message": "\ud83d\udca7 Drink some water! Stay hydrated."
+        },
+        "risk": "safe"
+      }
+    ],
+    "created_at": "2026-06-02T13:52:46.546589",
+    "updated_at": "2026-06-02T13:52:46.546593",
+    "last_run_at": null,
+    "run_count": 0,
+    "last_status": null
+  }
+]
