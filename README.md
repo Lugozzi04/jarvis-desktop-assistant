@@ -92,7 +92,7 @@ backend/
 │   ├── study/               # StudySkill — study mode
 │   └── dev/                 # DevSkill — development mode
 ├── db/                      # SQLAlchemy models (SQLite)
-└── tests/                   # 101+ tests across all subsystems
+│   └── tests/                  # 139 tests across all subsystems
 
 scripts/
 ├── setup_local_linux.sh     # One-command Linux setup
@@ -103,16 +103,19 @@ scripts/
 ├── start_jarvis_windows.ps1 # Portable desktop launcher (Windows)
 ├── dev_start_linux.sh       # Dev mode launcher (Linux)
 ├── check_environment.py     # Zero-dependency diagnostic tool
-└── pull_recommended_model.sh # Pulls qwen2.5:7b + phi3:mini
+├── check_desktop.py         # Desktop readiness validator (29 checks)
+├── smoke_test.py            # Full API smoke test (24 endpoints, JSON/exit code)
+├── pull_recommended_model.sh # Pulls qwen2.5:7b + phi3:mini
+└── setup_ollama_*.sh/ps1    # OS-specific Ollama installer + model download
 
-data/                        # Runtime data (gitignored)
-├── setup_state.json         # Wizard progress
-├── pending_actions.json     # Security gate queue
-├── memory.db                # SQLite vector store
-├── workflows.json           # Workflow definitions
-├── automations.json         # Automation definitions
-├── habit_events.json        # Habit learning events
-└── jarvis.log               # Application logs
+data/                        # Runtime data (gitignored — created at first run)
+├── automations.json         # Automation definitions (seeds committed)
+├── memory.db                # SQLite vector store (schema committed)
+├── workflows.json           # Workflow definitions (seeds committed)
+├── setup_state.json         # Wizard progress (created at runtime)
+├── pending_actions.json     # Security gate queue (created at runtime)
+├── habit_events.json        # Habit learning events (created at runtime)
+└── jarvis.log               # Application logs (created at runtime)
 ```
 
 ---
@@ -311,7 +314,7 @@ Every action has a risk level:
 ## 📊 Current Status
 
 ### Core System
-- ✅ FastAPI backend with 50+ API endpoints across 10 route modules
+- ✅ FastAPI backend with 76+ API endpoints across 11 route modules
 - ✅ 19 skills: auto-discovery, registry, permission guard
 - ✅ Intent Router: slash commands + rule-based NL (Italian + English)
 - ✅ LLM Gateway: Ollama + OpenAI-compatible + Mock providers, JSON mode
@@ -345,9 +348,9 @@ Every action has a risk level:
 - ✅ Startup/autostart templates: systemd, LaunchAgent, Task Scheduler, .desktop
 - ✅ Logging: Loguru structured logging + audit trail
 - ✅ Security: risk-based permissions (safe/confirmation/dangerous)
-- ✅ 101+ tests passing
+- ✅ 139 tests passing
 - ✅ Frontend builds without errors
-- ✅ 16 documentation files covering all subsystems
+- ✅ 19 documentation files covering all subsystems
 
 ### Documentation
 - See `docs/` for: architecture, roadmap, portable-desktop, desktop-app, setup-wizard, voice-system, specialized-skills, automation-engine, habit-learning, document-memory, llm-strategy, startup, security, troubleshooting, development, local-pc-test-plan
@@ -376,11 +379,11 @@ Every action has a risk level:
 | M15 | ✅ | Portable desktop app — BackendManager, loading screen, diagnostics, setup wizard, pending actions |
 | Future | 📋 | Edge TTS, wake word, OBS WebSocket, Discord bot, Spotify OAuth, streaming transcription, visual workflow builder, Tauri wrapper, installer, plugin marketplace, mobile companion |
 
-### Current Focus: Release Candidate Testing
+### Current Focus: v0.3.0 Release Candidate
 
-- 🟡 Fixing RC1 bugs
-- 🟡 Edge TTS real provider (top priority for v0.3.1)
-- 🟡 Wake word detection
+- 🟢 RC1 ready — all 15 milestones complete
+- 📋 On‑hold: real Edge TTS, wake word, OBS WebSocket reale, Discord bot, Spotify OAuth
+- 🗓️ v0.3.1 planned: Edge TTS, wake word, visual workflow builder
 - See `RELEASE_CANDIDATE.md` for full status
 
 ---
