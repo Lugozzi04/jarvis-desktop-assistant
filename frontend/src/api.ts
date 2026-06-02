@@ -104,6 +104,21 @@ export interface LLMTestResult {
 
 // ── Document Memory ──
 
+export interface PendingAction {
+  id: string;
+  skill: string;
+  action: string;
+  risk: string;
+  reason: string;
+  parameters: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface PendingActionsResponse {
+  actions: PendingAction[];
+  count: number;
+}
+
 export interface DocumentInfo {
   id: string;
   path: string;
@@ -176,8 +191,31 @@ export interface IndexFolderResponse {
   failed: number;
 }
 
+export interface HealthFullResponse {
+  timestamp: string;
+  backend: { online: boolean; version: string; skills_loaded: number; initialized: boolean };
+  llm: { provider: string; available: boolean; model: string; error?: string };
+  documents: { ready: boolean; documents: number; chunks: number; embedding_provider: string; provider_available?: boolean; error?: string };
+  voice: { available: boolean; stt: string; tts: string };
+  automations: { scheduler_running: boolean; automations_loaded: number };
+  workflows: { workflows_loaded: number };
+  skills: { loaded: string[] };
+  pending_actions: { count: number; queue_enabled: boolean };
+  desktop: { electron: boolean; portable_mode: boolean };
+  environment: { python: string; system: string; release: string; machine: string };
+  warnings: string[];
+  errors: string[];
+  recommended_next_steps: string[];
+}
+
+export interface PendingCountResponse {
+  count: number;
+}
+
 export const api = {
   health: () => fetchAPI<HealthStatus>('/health'),
+  healthFull: () => fetchAPI<HealthFullResponse>('/api/health/full'),
+  pendingActionsCount: () => fetchAPI<PendingCountResponse>('/api/pending-actions/count'),
   chat: (message: string) =>
     fetchAPI<ChatResponse>('/api/chat', {
       method: 'POST',
@@ -244,4 +282,11 @@ export const api = {
     fetchAPI<{ deleted: string }>(`/api/documents/${id}`, { method: 'DELETE' }),
   clearDocuments: () =>
     fetchAPI<{ cleared: boolean }>('/api/documents/clear', { method: 'POST' }),
+
+  // Pending Security Actions
+  pendingActions: () => fetchAPI<PendingActionsResponse>('/api/pending-actions'),
+  approvePendingAction: (id: string) =>
+    fetchAPI<{ status: string; id: string }>(`/api/pending-actions/${id}/approve`, { method: 'POST' }),
+  rejectPendingAction: (id: string) =>
+    fetchAPI<{ status: string; id: string }>(`/api/pending-actions/${id}/reject`, { method: 'POST' }),
 };

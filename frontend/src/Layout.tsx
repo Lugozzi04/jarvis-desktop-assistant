@@ -5,6 +5,7 @@ import type { HealthStatus } from './api';
 
 function Layout() {
   const [health, setHealth] = useState<HealthStatus | null>(null);
+  const [pendingCount, setPendingCount] = useState<number>(0);
 
   useEffect(() => {
     const check = async () => {
@@ -15,8 +16,17 @@ function Layout() {
         setHealth(null);
       }
     };
+    const checkPending = async () => {
+      try {
+        const p = await api.pendingActionsCount();
+        setPendingCount(p.count);
+      } catch {
+        setPendingCount(0);
+      }
+    };
     check();
-    const interval = setInterval(check, 15000);
+    checkPending();
+    const interval = setInterval(() => { check(); checkPending(); }, 15000);
     return () => clearInterval(interval);
   }, []);
 
@@ -45,6 +55,14 @@ function Layout() {
           </NavLink>
           <NavLink to="/automations" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <span className="nav-icon">⚙️</span> Automations
+          </NavLink>
+          <NavLink to="/pending-actions" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <span className="nav-icon">⏳</span> Pending
+            {pendingCount > 0 && (
+              <span className="badge badge-warning" style={{ marginLeft: 'auto', fontSize: '0.7rem', padding: '2px 8px' }}>
+                {pendingCount}
+              </span>
+            )}
           </NavLink>
           <NavLink to="/logs" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <span className="nav-icon">📋</span> Logs
@@ -91,6 +109,11 @@ function Layout() {
                 <span className={`badge ${llmAvailable ? 'badge-success' : 'badge-warning'}`}>
                   LLM: {health.llm?.provider || 'none'}
                 </span>
+                {pendingCount > 0 && (
+                  <span className="badge badge-warning" style={{ cursor: 'pointer' }}>
+                    ⏳ {pendingCount} Pending
+                  </span>
+                )}
               </>
             )}
           </div>

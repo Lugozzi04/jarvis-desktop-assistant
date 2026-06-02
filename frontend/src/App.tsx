@@ -11,6 +11,8 @@ import LLMSettings from './pages/LLMSettings';
 import Voice from './pages/Voice';
 import Habits from './pages/Habits';
 import Documents from './pages/Documents';
+import PendingActions from './pages/PendingActions';
+import SetupWizard from './pages/SetupWizard';
 
 function App() {
   return (
@@ -28,6 +30,8 @@ function App() {
           <Route path="/voice" element={<Voice />} />
           <Route path="/habits" element={<Habits />} />
           <Route path="/documents" element={<Documents />} />
+          <Route path="/pending-actions" element={<PendingActions />} />
+          <Route path="/setup" element={<SetupWizard />} />
         </Route>
       </Routes>
     </BrowserRouter>
