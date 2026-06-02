@@ -217,5 +217,102 @@ def delete_workflow(workflow_id: str):
 
 @router.get("/automations")
 def list_automations():
-    """List automations (placeholder — M8)."""
-    return {"automations": [], "note": "Automation engine coming in M8"}
+    """List all automations."""
+    try:
+        from backend.automation.engine import automation_engine
+        return {"automations": automation_engine.list_all()}
+    except Exception as exc:
+        return {"automations": [], "error": str(exc)}
+
+
+@router.post("/automations")
+def create_automation(data: dict[str, Any]):
+    """Create a new automation."""
+    try:
+        from backend.automation.engine import automation_engine
+        return automation_engine.create(data)
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+@router.get("/automations/{automation_id}")
+def get_automation(automation_id: str):
+    """Get an automation by ID."""
+    try:
+        from backend.automation.engine import automation_engine
+        auto = automation_engine.get(automation_id)
+        if auto is None:
+            return {"error": "Automation not found"}
+        return auto
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+@router.put("/automations/{automation_id}")
+def update_automation(automation_id: str, data: dict[str, Any]):
+    """Update an automation."""
+    try:
+        from backend.automation.engine import automation_engine
+        return automation_engine.update(automation_id, data)
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+@router.delete("/automations/{automation_id}")
+def delete_automation(automation_id: str):
+    """Delete an automation."""
+    try:
+        from backend.automation.engine import automation_engine
+        return automation_engine.delete(automation_id)
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+@router.post("/automations/{automation_id}/enable")
+def enable_automation(automation_id: str):
+    """Enable an automation."""
+    try:
+        from backend.automation.engine import automation_engine
+        return automation_engine.enable(automation_id)
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+@router.post("/automations/{automation_id}/disable")
+def disable_automation(automation_id: str):
+    """Disable an automation."""
+    try:
+        from backend.automation.engine import automation_engine
+        return automation_engine.disable(automation_id)
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+@router.post("/automations/{automation_id}/run")
+def run_automation(automation_id: str):
+    """Execute an automation manually."""
+    try:
+        from backend.automation.engine import automation_engine
+        return automation_engine.run(automation_id, triggered_by="manual")
+    except Exception as exc:
+        return {"status": "error", "error": str(exc)}
+
+
+@router.get("/automations/engine/status")
+def automation_engine_status():
+    """Get automation engine/scheduler status."""
+    try:
+        from backend.automation.engine import automation_engine
+        return automation_engine.get_scheduler_status()
+    except Exception as exc:
+        return {"running": False, "error": str(exc)}
+
+
+@router.post("/automations/reload")
+def reload_automations():
+    """Reload automations from storage."""
+    try:
+        from backend.automation.engine import automation_engine
+        return automation_engine.reload()
+    except Exception as exc:
+        return {"error": str(exc)}

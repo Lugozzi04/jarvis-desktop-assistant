@@ -50,7 +50,22 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("LLM Gateway initialization skipped: {}", exc)
 
+    # Start Automation Engine scheduler
+    try:
+        from backend.automation.engine import automation_engine
+        automation_engine.start_scheduler()
+        logger.info("Automation Engine scheduler started")
+    except Exception as exc:
+        logger.warning("Automation Engine scheduler start skipped: {}", exc)
+
     yield
+
+    # Stop Automation Engine scheduler
+    try:
+        from backend.automation.engine import automation_engine
+        automation_engine.stop_scheduler()
+    except Exception:
+        pass
 
     # Shutdown
     logger.info("👋 JARVIS shutting down")
