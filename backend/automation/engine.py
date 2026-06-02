@@ -101,12 +101,38 @@ def _check_interval_trigger(trigger: Trigger, ctx: dict[str, Any]) -> bool:
 
 
 def _check_app_opened_trigger(cfg, ctx: dict[str, Any]) -> bool:
-    """Check if the configured app was opened."""
+    """Check if the configured app was opened — uses ProcessMonitor."""
     app_name = cfg.app_name
     if not app_name:
         return False
-    opened_app = ctx.get("app_opened", "")
-    return opened_app.lower() == app_name.lower()
+
+    # Check context first (from scheduler tick)
+    newly_opened = ctx.get("_newly_opened_apps", [])
+    if newly_opened:
+        app_norm = app_name.lower()
+        # Use alias matching from ProcessMonitor
+        try:
+            from backend.core.process_monitor import normalize_app_name, APP_ALIASES
+            aliases = APP_ALIASES.get(normalize_app_name(app_name), [app_norm])
+            for proc_name in newly_opened:
+                proc_lower = proc_name.lower()
+                for alias in aliases:
+                    if alias.lower() in proc_lower or proc_lower in alias.lower():
+                        return True
+        except ImportError:
+            # Simple check without ProcessMonitor aliases
+            for proc_name in newly_opened:
+                if app_norm in proc_name.lower() or proc_name.lower() in app_norm:
+                    return True
+
+    # Fallback: direct check
+    try:
+        from backend.core.process_monitor import is_app_running
+        return is_app_running(app_name)
+    except ImportError:
+        return False
+    except Exception:
+        return False
 
 
 def _check_mode_trigger(cfg, ctx: dict[str, Any]) -> bool:
@@ -189,8 +215,18 @@ def _check_day_of_week(cfg) -> tuple[bool, str]:
 
 
 def _check_app_running(cfg) -> tuple[bool, str]:
-    # Placeholder — would need OS-specific process detection
-    return True, "app_running check is placeholder — always passes"
+    """Check if an app is running using ProcessMonitor."""
+    app_name = cfg.app_name
+    if not app_name:
+        return True, "no app name configured — passes"
+    try:
+        from backend.core.process_monitor import is_app_running
+        running = is_app_running(app_name)
+        if running:
+            return True, f"app '{app_name}' is running"
+        return False, f"app '{app_name}' is not running"
+    except ImportError:
+        return True, "psutil not available — condition passes"
 
 
 def _check_mode_condition(cfg) -> tuple[bool, str]:
@@ -634,7 +670,7 @@ class AutomationEngine:
         }
 
     def _scheduler_loop(self) -> None:
-        """Background loop checking time/interval triggers every 15 seconds."""
+        """Background loop checking time/interval/app_opened triggers every 15 seconds."""
         logger.info("Scheduler loop started — tick interval: 15s")
 
         # Run startup automations once
@@ -647,18 +683,33 @@ class AutomationEngine:
                 tick_start = datetime.utcnow()
                 self._last_tick = tick_start.isoformat()
 
+                # Check for newly opened apps (ProcessMonitor)
+                newly_opened: list[str] = []
+                try:
+                    from backend.core.process_monitor import process_monitor
+                    newly_opened = process_monitor.detect_new_processes()
+                except Exception:
+                    pass
+
                 with self._lock:
                     for auto in list(self._automations.values()):
                         if not auto.enabled:
                             continue
-                        if auto.trigger.type in ("manual", "app_opened", "mode_is"):
-                            continue  # Not triggered by scheduler
+                        if auto.trigger.type in ("mode_is",):
+                            continue  # mode_is not yet implemented
 
                         try:
                             context = {
                                 "_last_interval_run": self._last_interval_run,
+                                "_newly_opened_apps": newly_opened,
                                 "startup": False,
                             }
+
+                            # For app_opened triggers, only check if there are new processes
+                            if auto.trigger.type == "app_opened":
+                                if not newly_opened:
+                                    continue
+
                             should_run = TriggerEvaluator.evaluate(auto.trigger, context)
 
                             if should_run:
@@ -666,7 +717,7 @@ class AutomationEngine:
                                 if auto.trigger.type == "interval" and auto.trigger.config.interval_minutes:
                                     self._last_interval_run[auto.trigger.config.interval_minutes] = time.time()
 
-                                logger.info("Scheduler triggered: {} ({})", auto.name, auto.id)
+                                logger.info("Scheduler triggered: {} ({}) type={}", auto.name, auto.id, auto.trigger.type)
                                 self.run(auto.id, triggered_by="scheduler", context=context)
 
                         except Exception as exc:

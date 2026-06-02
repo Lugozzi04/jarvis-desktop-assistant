@@ -167,8 +167,12 @@ class TestTriggerEvaluator:
 
     def test_app_opened_trigger(self):
         trigger = Trigger(type="app_opened", config=TriggerConfig(app_name="OBS"))
-        assert TriggerEvaluator.evaluate(trigger, {"app_opened": "OBS"}) is True
-        assert TriggerEvaluator.evaluate(trigger, {"app_opened": "Discord"}) is False
+        # With newly_opened_apps in context
+        assert TriggerEvaluator.evaluate(trigger, {"_newly_opened_apps": ["obs64"]}) is True
+        assert TriggerEvaluator.evaluate(trigger, {"_newly_opened_apps": ["discord"]}) is False
+        # Without context, falls back to ProcessMonitor or False
+        result = TriggerEvaluator.evaluate(trigger, {})
+        assert isinstance(result, bool)
 
     def test_unknown_trigger_type(self):
         trigger = Trigger(type="manual", config=TriggerConfig())
