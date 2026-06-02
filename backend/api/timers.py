@@ -12,7 +12,11 @@ async def list_timers():
     """Return all active timers (for frontend countdown display)."""
     try:
         from backend.core.registry import skill_registry
-        timer_skill = skill_registry.get_skill("timers")
+        from backend.core.errors import SkillNotFoundError
+        try:
+            timer_skill = skill_registry.get("timers")
+        except SkillNotFoundError:
+            timer_skill = None
         if timer_skill and hasattr(timer_skill, "_timers"):
             timers = []
             now = __import__("time").time()

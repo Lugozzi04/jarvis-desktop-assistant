@@ -72,11 +72,13 @@ class AppSkill(BaseSkill):
                 # shell built-in — always use subprocess
                 subprocess.Popen(command, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             elif system == "Windows":
-                # Try os.startfile first (handles .exe, .lnk, URLs), fall back to subprocess
-                try:
-                    os.startfile(command)
-                except Exception:
-                    subprocess.Popen(command, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                # Use 'start' command (searches Start Menu + PATH)
+                subprocess.Popen(
+                    f"start \"\" \"{command}\"",
+                    shell=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
             elif system == "Darwin":
                 subprocess.Popen(["open", "-a", command], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             else:  # Linux

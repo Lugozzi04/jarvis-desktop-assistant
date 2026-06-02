@@ -197,38 +197,37 @@ class AssistantOrchestrator:
             return f"❌ Workflow engine error: {exc}"
 
     def _handle_chat(self, question: str) -> str:
-        """Handle a general chat question using the LLM Gateway or ChatSkill."""
+        """Handle a general chat question. Uses sync Ollama call first (no async issues on Windows)."""
         if not question:
             return "How can I help you?"
 
-        # Try ChatSkill first (uses LLM Gateway internally)
+        # Direct sync call to Ollama (bypasses async event loop issues)
+        try:
+            import requests
+            r = requests.post(
+                "http://localhost:11434/api/chat",
+                json={
+                    "model": "qwen2.5:7b",
+                    "messages": [
+                        {"role": "system", "content": "You are JARVIS, a helpful desktop assistant. Respond concisely in the user's language."},
+                        {"role": "user", "content": question},
+                    ],
+                    "stream": False,
+                },
+                timeout=30,
+            )
+            if r.status_code == 200:
+                return r.json().get("message", {}).get("content", "")
+        except Exception:
+            pass
+
+        # Try ChatSkill via registry
         try:
             result = skill_registry.execute("chat", "answer_question", {"question": question})
             if result and result.success:
                 return result.result or "I processed your request."
         except Exception:
             pass
-
-        # Fallback: try LLM gateway directly
-        try:
-            from backend.llm.gateway import llm_gateway
-            import asyncio
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as pool:
-                    future = pool.submit(asyncio.run, llm_gateway.chat([
-                        {"role": "system", "content": "You are JARVIS, a helpful desktop assistant. Respond concisely in the user's language."},
-                        {"role": "user", "content": question},
-                    ]))
-                    return future.result(timeout=30)
-            else:
-                return asyncio.run(llm_gateway.chat([
-                    {"role": "system", "content": "You are JARVIS, a helpful desktop assistant. Respond concisely in the user's language."},
-                    {"role": "user", "content": question},
-                ]))
-        except Exception as exc:
-            logger.warning("LLM chat failed: {}", exc)
 
         # Ultimate fallback
         return (

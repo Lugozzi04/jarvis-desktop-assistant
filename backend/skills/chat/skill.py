@@ -62,27 +62,42 @@ class ChatSkill(BaseSkill):
 
 
 def _try_llm(messages: list[dict[str, str]]) -> str:
-    """Try to use the LLM Gateway, fall back gracefully."""
+    """Try to use the LLM, fall back gracefully. Uses sync HTTP to avoid async issues on Windows."""
+    import json
+    try:
+        import requests
+        r = requests.post(
+            "http://localhost:11434/api/chat",
+            json={
+                "model": "qwen2.5:7b",
+                "messages": messages,
+                "stream": False,
+            },
+            timeout=30,
+        )
+        if r.status_code == 200:
+            return r.json().get("message", {}).get("content", "")
+    except Exception as exc:
+        logger.warning("Direct Ollama call failed: {}", exc)
+
+    # Try async gateway as fallback
     try:
         from backend.llm.gateway import llm_gateway
-    except ImportError:
-        return _fallback_response()
-
-    import asyncio
-
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # Running in async context — need a different approach
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                future = pool.submit(asyncio.run, llm_gateway.generate(messages))
-                return future.result(timeout=30)
-        else:
-            return asyncio.run(llm_gateway.generate(messages))
+        import asyncio
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            future = pool.submit(_run_async, llm_gateway.generate(messages))
+            return future.result(timeout=30)
     except Exception as exc:
         logger.warning("LLM Gateway failed: {}", exc)
-        return _fallback_response()
+
+    return _fallback_response()
+
+
+def _run_async(coro):
+    """Run a coroutine in a new event loop (thread-safe)."""
+    import asyncio
+    return asyncio.run(coro)
 
 
 def _fallback_response() -> str:
