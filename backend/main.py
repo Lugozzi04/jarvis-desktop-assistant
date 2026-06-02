@@ -95,10 +95,15 @@ app.add_middleware(
 
 @app.get("/")
 def root():
-    """Health check and basic info."""
+    """Serve frontend if built, otherwise health JSON."""
+    FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+    index_path = FRONTEND_DIST / "index.html"
+    if index_path.exists():
+        from fastapi.responses import FileResponse
+        return FileResponse(index_path)
     return {
         "name": "Jarvis Desktop Assistant",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "status": "running",
         "skills_loaded": len(_get_skills()),
     }
