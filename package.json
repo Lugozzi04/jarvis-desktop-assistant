@@ -1,14 +1,12 @@
 {
   "name": "jarvis-desktop-assistant",
   "version": "0.3.0",
-  "description": "Jarvis Desktop Assistant — LLM-powered personal assistant (native Electron app)",
+  "description": "Jarvis Desktop Assistant — LLM-powered personal assistant with native webview window",
   "private": true,
   "scripts": {
     "setup": "cd frontend && npm install",
     "build": "cd frontend && npm run build",
-    "desktop": "cd frontend && npx electron .",
     "dev": "cd frontend && npm run dev",
-    "desktop:dev": "cd frontend && npm run desktop:dev",
     "test": "python -m pytest tests/ -v --tb=short",
     "smoke": "python scripts/smoke_test.py",
     "check": "python scripts/check_environment.py"

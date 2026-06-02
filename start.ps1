@@ -1,127 +1,75 @@
-﻿# Jarvis Desktop Assistant — One-click Launcher (Windows)
+﻿# Jarvis Desktop Assistant — One-Click Launcher (Windows)
 # Run: .\start.ps1
-# Does everything: git pull → deps → Electron fix → launch
+# NO npm, NO Electron, NO browser. Just Python + native webview.
 
-$ErrorActionPreference = "Continue"
+$ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
 Write-Host ""
 Write-Host "╔══════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║   JARVIS Desktop Assistant v0.3.0   ║" -ForegroundColor Cyan
+Write-Host "║  JARVIS Desktop Assistant v0.3.0    ║" -ForegroundColor Cyan
 Write-Host "╚══════════════════════════════════════╝" -ForegroundColor Cyan
 Write-Host ""
 
-# ── Git Pull ──
-Write-Host "[1/6] Updating code..." -ForegroundColor Yellow
-$stashNeeded = $false
-$dirty = git status --porcelain 2>$null
-if ($dirty) {
-    Write-Host "   Stashing local changes..." -ForegroundColor DarkGray
-    git stash push -m "auto-stash by start.ps1" 2>$null
-    $stashNeeded = $true
+# ── Step 1: Git pull (auto-stash local changes) ──
+Write-Host "[1/4] Updating code..." -ForegroundColor Yellow
+$stashed = $false
+if (Test-Path ".git") {
+    $status = git status --porcelain 2>$null
+    if ($status) {
+        git stash push -m "auto-stash by start.ps1" 2>&1 | Out-Null
+        $stashed = $true
+    }
+    git pull --ff-only 2>&1 | Out-Null
+    if ($stashed) {
+        git stash pop 2>&1 | Out-Null
+    }
+    Write-Host "   ✅ Code up to date" -ForegroundColor Green
+} else {
+    Write-Host "   ⚠️  Not a git repo — skipping pull" -ForegroundColor Yellow
 }
-git pull 2>&1 | Out-Null
-Write-Host "   ✅ Code up to date" -ForegroundColor Green
 
-# ── Python ──
-Write-Host "[2/6] Setting up Python environment..." -ForegroundColor Yellow
+# ── Step 2: Check Python ──
+Write-Host "[2/4] Setting up Python..." -ForegroundColor Yellow
 $py = $null
 if (Get-Command python -ErrorAction SilentlyContinue) { $py = "python" }
 elseif (Get-Command python3 -ErrorAction SilentlyContinue) { $py = "python3" }
 elseif (Get-Command py -ErrorAction SilentlyContinue) { $py = "py" }
 else {
-    Write-Host "   ❌ Python not found. Install: winget install Python.Python.3.11" -ForegroundColor Red
-    pause; exit 1
+    Write-Host "❌ Python not found. Install from https://python.org" -ForegroundColor Red
+    pause
+    exit 1
 }
+Write-Host "   ✅ $py" -ForegroundColor Green
 
+# ── Step 3: Setup venv + install deps ──
+Write-Host "[3/4] Installing dependencies..." -ForegroundColor Yellow
 if (-not (Test-Path ".venv")) {
     & $py -m venv .venv
-    & .\.venv\Scripts\python.exe -m pip install -q -r requirements.txt
-    Write-Host "   ✅ Virtual environment created" -ForegroundColor Green
-} else {
-    & .\.venv\Scripts\python.exe -m pip install -q -r requirements.txt 2>$null
-    Write-Host "   ✅ Python deps up to date" -ForegroundColor Green
 }
+& .\.venv\Scripts\python.exe -m pip install -q --upgrade pip
+& .\.venv\Scripts\python.exe -m pip install -q -r requirements.txt
+Write-Host "   ✅ Dependencies up to date" -ForegroundColor Green
 
-# ── Node.js ──
-Write-Host "[3/6] Checking Node.js..." -ForegroundColor Yellow
-if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
-    Write-Host "   ❌ Node.js not found. Install: winget install OpenJS.NodeJS.LTS" -ForegroundColor Red
-    pause; exit 1
-}
-Write-Host "   ✅ Node v$(node --version)" -ForegroundColor Green
+# ── Step 4: Launch Jarvis Desktop App ──
+Write-Host "[4/4] Launching Jarvis..." -ForegroundColor Yellow
+Write-Host "   🖥️  Opening native window — close it to exit." -ForegroundColor DarkGray
 
-# ── Frontend + Electron ──
-Write-Host "[4/6] Installing frontend dependencies..." -ForegroundColor Yellow
-Push-Location frontend
-
-# Install all deps (including electron)
-npm install 2>$null
-
-# Fix Electron if binary missing (common Windows issue)
-$electronDist = "node_modules\electron\dist\electron.exe"
-if (-not (Test-Path $electronDist)) {
-    Write-Host "   ⚡ Electron binary missing — downloading..." -ForegroundColor Yellow
-    Remove-Item -Recurse -Force node_modules\electron -ErrorAction SilentlyContinue | Out-Null
-    npm install electron@35.0.0 2>$null
-    
-    if (-not (Test-Path $electronDist)) {
-        # Last-resort: run install script manually
-        Write-Host "   ⚡ Retrying Electron install..." -ForegroundColor Yellow
-        try {
-            node "node_modules\electron\install.js" 2>$null
-        } catch {}
-    }
-}
-
-if (Test-Path $electronDist) {
-    Write-Host "   ✅ Electron ready" -ForegroundColor Green
-} else {
-    Write-Host "   ⚠️  Electron binary still missing (network/proxy issue)" -ForegroundColor Yellow
-    Write-Host "   ⚠️  Falling back to browser mode" -ForegroundColor Yellow
-}
-
-# Build frontend
-npm run build 2>$null
-Pop-Location
-Write-Host "   ✅ Frontend built" -ForegroundColor Green
-
-# ── Ollama check ──
-Write-Host "[5/6] Checking Ollama..." -ForegroundColor Yellow
-$ollamaOk = $false
+# Check Ollama
+$ollamaRunning = $false
 try {
-    $ollamaRsp = Invoke-RestMethod -Uri "http://localhost:11434/api/tags" -TimeoutSec 2 -ErrorAction Stop
-    if ($ollamaRsp) { $ollamaOk = $true }
-} catch {}
-
-if ($ollamaOk) {
-    Write-Host "   ✅ Ollama running" -ForegroundColor Green
-} else {
-    Write-Host "   ⚠️  Ollama not running" -ForegroundColor Yellow
-    Write-Host "   💡 Start Ollama from Start Menu, then: ollama pull qwen2.5:7b" -ForegroundColor DarkGray
-}
-
-# ── Launch ──
-Write-Host "[6/6] Launching Jarvis..." -ForegroundColor Yellow
-
-if (Test-Path "frontend\$electronDist") {
-    Write-Host "   🖥️  Opening native Electron window..." -ForegroundColor Cyan
-    Push-Location frontend
-    $env:ELECTRON_RUN_AS_NODE = "0"
-    $electronPath = Resolve-Path $electronDist
-    Start-Process -FilePath $electronPath -ArgumentList "." -Wait
-    Pop-Location
-} else {
-    # Browser fallback
-    Write-Host "   🌐 Opening in browser: http://localhost:8400" -ForegroundColor Cyan
-    Write-Host "   ℹ️  Backend runs in background. Close this window to stop." -ForegroundColor DarkGray
-    Start-Process -NoNewWindow .\.venv\Scripts\python.exe -ArgumentList "-m", "uvicorn", "backend.main:app", "--host", "127.0.0.1", "--port", "8400"
-    Start-Sleep -Seconds 3
-    Start-Process "http://localhost:8400"
-    Write-Host "   Press any key to stop backend..." -ForegroundColor DarkGray
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    $r = Invoke-WebRequest -Uri "http://localhost:11434/api/tags" -TimeoutSec 2 -ErrorAction SilentlyContinue
+    if ($r.StatusCode -eq 200) {
+        $ollamaRunning = $true
+        Write-Host "   🤖 Ollama connected" -ForegroundColor Green
+    }
+} catch {
+    Write-Host "   💡 Start Ollama from Start Menu for LLM chat: ollama pull qwen2.5:7b" -ForegroundColor Yellow
 }
 
 Write-Host ""
-Write-Host "✅ Done! ⚡" -ForegroundColor Green
+& .\.venv\Scripts\python.exe -m backend.desktop
+
+Write-Host ""
+Write-Host "✅ Jarvis closed. See you next time! ⚡" -ForegroundColor Green
 pause
