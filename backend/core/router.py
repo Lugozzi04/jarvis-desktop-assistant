@@ -169,6 +169,43 @@ SLASH_PATTERNS: list[tuple[re.Pattern, str, str, dict[str, Any] | None]] = [
         "github", "open_issues",
         lambda m: {"repo": m.group(1).strip()},
     ),
+
+    # /docs list
+    (
+        re.compile(r"^/docs\s+list", re.IGNORECASE),
+        "documents", "list_documents",
+        lambda m: {},
+    ),
+    # /docs index <path>
+    (
+        re.compile(r"^/docs\s+index\s+(.+)", re.IGNORECASE),
+        "documents", "index_file",
+        lambda m: {"path": m.group(1).strip()},
+    ),
+    # /docs index-folder <path>
+    (
+        re.compile(r"^/docs\s+index-folder\s+(.+)", re.IGNORECASE),
+        "documents", "index_folder",
+        lambda m: {"folder_path": m.group(1).strip()},
+    ),
+    # /docs search <query>
+    (
+        re.compile(r"^/docs\s+search\s+(.+)", re.IGNORECASE),
+        "documents", "search_documents",
+        lambda m: {"query": m.group(1).strip()},
+    ),
+    # /docs ask <question>
+    (
+        re.compile(r"^/docs\s+ask\s+(.+)", re.IGNORECASE),
+        "documents", "ask_documents",
+        lambda m: {"question": m.group(1).strip()},
+    ),
+    # /docs clear
+    (
+        re.compile(r"^/docs\s+clear", re.IGNORECASE),
+        "documents", "clear_index",
+        lambda m: {},
+    ),
 ]
 
 # ── Rule-Based Pattern Routing ──
@@ -191,6 +228,15 @@ RULE_PATTERNS: list[tuple[re.Pattern, str, str]] = [
     (re.compile(r"\b(?:git\s+status|stato\s+git)\b", re.IGNORECASE), "github", "git_status"),
     (re.compile(r"\b(?:apri|open)\s+(?:repo|il\s+repo)\s+(.+)", re.IGNORECASE), "github", "open_repo"),
     (re.compile(r"\b(?:clona|clone)\s+(?:repo\s+)?(.+)", re.IGNORECASE), "github", "clone_repo"),
+
+    # ── Document Memory ──
+    (re.compile(r"\b(?:indicizza|index)\s+(?:questo\s+)?(?:file|il\s+file)\s+(.+)", re.IGNORECASE), "documents", "index_file"),
+    (re.compile(r"\b(?:indicizza|index)\s+(?:questa\s+)?(?:cartella|la\s+cartella|folder)\s+(.+)", re.IGNORECASE), "documents", "index_folder"),
+    (re.compile(r"\b(?:cerca|cercami|search|find)\s+(?:nei|nei miei|in)\s+(?:documenti|document|docs|appunti|notes)\s+(.+)", re.IGNORECASE), "documents", "search_documents"),
+    (re.compile(r"\b(?:cosa|che\s+cosa|what|what do)\s+(?:dicono|dice|say|my)\s+(?:i\s+)?(?:miei\s+)?(?:documenti|document|docs|appunti|notes)\s+(?:su|about|riguardo\s+a)\s+(.+)", re.IGNORECASE), "documents", "ask_documents"),
+    (re.compile(r"\b(?:chiedi|ask|domanda)\s+(?:ai|ai\s+miei)\s+(?:documenti|documents|appunti)\s+(.+)", re.IGNORECASE), "documents", "ask_documents"),
+    (re.compile(r"\b(?:riassumi|summarize)\s+(?:i\s+)?(?:documenti|documents)\s+(?:su|about)\s+(.+)", re.IGNORECASE), "documents", "ask_documents"),
+    (re.compile(r"\b(?:elenca|list|mostra|show)\s+(?:i\s+)?(?:miei\s+)?(?:documenti|documents|docs)", re.IGNORECASE), "documents", "list_documents"),
 ]
 
 
@@ -296,6 +342,11 @@ class IntentRouter:
                         ("web_search", "search_and_summarize"): "query",
                         ("chat", "explain_concept"): "question",
                         ("workflows", "run_workflow"): "workflow_name",
+                        ("documents", "index_file"): "path",
+                        ("documents", "index_folder"): "folder_path",
+                        ("documents", "search_documents"): "query",
+                        ("documents", "ask_documents"): "question",
+                        ("documents", "list_documents"): "query",
                     }
                     key = param_names.get((skill, action), "query")
                     params[key] = groups[0].strip()

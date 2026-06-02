@@ -102,6 +102,80 @@ export interface LLMTestResult {
   error?: string;
 }
 
+// ── Document Memory ──
+
+export interface DocumentInfo {
+  id: string;
+  path: string;
+  filename: string;
+  file_type: string;
+  size_bytes: number;
+  status: string;
+  error: string | null;
+  metadata: Record<string, unknown>;
+  chunk_count: number;
+  created_at: string;
+  indexed_at: string | null;
+}
+
+export interface DocumentChunk {
+  id: string;
+  document_id: string;
+  chunk_index: number;
+  text: string;
+  token_count: number;
+  metadata: Record<string, unknown>;
+}
+
+export interface SearchResult {
+  document_id: string;
+  filename: string;
+  chunk_id: string;
+  chunk_index: number;
+  score: number;
+  text_preview: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface RAGAnswer {
+  question: string;
+  answer: string;
+  sources: SearchResult[];
+  provider: string;
+  error: string | null;
+}
+
+export interface MemoryStatus {
+  documents: number;
+  chunks: number;
+  embedding_provider: string;
+  ready: boolean;
+  error: string | null;
+}
+
+export interface DocumentsListResponse {
+  documents: DocumentInfo[];
+  count: number;
+}
+
+export interface DocumentDetailResponse {
+  document: DocumentInfo;
+  chunks: DocumentChunk[];
+}
+
+export interface SearchResponse {
+  query: string;
+  results: SearchResult[];
+  count: number;
+}
+
+export interface IndexFolderResponse {
+  documents: DocumentInfo[];
+  total: number;
+  indexed: number;
+  failed: number;
+}
+
 export const api = {
   health: () => fetchAPI<HealthStatus>('/health'),
   chat: (message: string) =>
@@ -140,4 +214,34 @@ export const api = {
   runAutomation: (id: string) =>
     fetchAPI(`/api/automations/${id}/run`, { method: 'POST' }),
   automationEngineStatus: () => fetchAPI('/api/automations/engine/status'),
+
+  // Document Memory
+  documentsList: (status?: string) =>
+    fetchAPI<DocumentsListResponse>(`/api/documents${status ? `?status=${status}` : ''}`),
+  documentsStatus: () => fetchAPI<MemoryStatus>('/api/documents/status'),
+  documentDetail: (id: string) => fetchAPI<DocumentDetailResponse>(`/api/documents/${id}`),
+  indexFile: (path: string) =>
+    fetchAPI<{ document: DocumentInfo }>('/api/documents/index', {
+      method: 'POST',
+      body: JSON.stringify({ path }),
+    }),
+  indexFolder: (folderPath: string, recursive: boolean = true) =>
+    fetchAPI<IndexFolderResponse>('/api/documents/index-folder', {
+      method: 'POST',
+      body: JSON.stringify({ folder_path: folderPath, recursive }),
+    }),
+  searchDocuments: (query: string, topK: number = 5) =>
+    fetchAPI<SearchResponse>('/api/documents/search', {
+      method: 'POST',
+      body: JSON.stringify({ query, top_k: topK }),
+    }),
+  askDocuments: (question: string, topK: number = 5) =>
+    fetchAPI<RAGAnswer>('/api/documents/ask', {
+      method: 'POST',
+      body: JSON.stringify({ question, top_k: topK }),
+    }),
+  deleteDocument: (id: string) =>
+    fetchAPI<{ deleted: string }>(`/api/documents/${id}`, { method: 'DELETE' }),
+  clearDocuments: () =>
+    fetchAPI<{ cleared: boolean }>('/api/documents/clear', { method: 'POST' }),
 };

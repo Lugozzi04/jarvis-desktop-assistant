@@ -58,6 +58,9 @@ function Layout() {
           <NavLink to="/habits" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <span className="nav-icon">🧠</span> Habits
           </NavLink>
+          <NavLink to="/documents" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <span className="nav-icon">📚</span> Documents
+          </NavLink>
         </nav>
         <div className="sidebar-footer">
           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
