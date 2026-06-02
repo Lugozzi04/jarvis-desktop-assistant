@@ -2,7 +2,7 @@
 
 Modular AI desktop assistant — control your PC, chat intelligently, execute commands, manage workflows, automations, voice, memory, and extensible skills/plugins.
 
-**Status:** M1-M5 complete, M6 (Frontend) complete — usable MVP with React UI and LLM Gateway.
+**Status:** M1-M15 complete — Release Candidate 0.3.0-rc1. Portable desktop app with 19+ skills, LLM Gateway, RAG document memory, voice pipeline, workflow & automation engines, habit learning, and Electron desktop wrapper.
 
 ---
 
@@ -10,10 +10,13 @@ Modular AI desktop assistant — control your PC, chat intelligently, execute co
 
 ```
 frontend/                    # React + Vite + TypeScript
+│   ├── electron/            # Electron main process, preload, BackendManager
 │   └── src/
 │       ├── api.ts           # API client
-│       ├── Layout.tsx        # Sidebar + Topbar
-│       └── pages/           # Dashboard, Chat, Skills, Logs, Settings, LLM Settings
+│       ├── Layout.tsx        # Sidebar + Topbar (pending badge)
+│       └── pages/           # 13 pages: Dashboard, Chat, Skills, Workflows,
+│                            #   Automations, Logs, Settings, LLM Settings,
+│                            #   SetupWizard, Documents, Voice, Habits, PendingActions
 
 backend/
 ├── main.py                  # FastAPI app, health, CORS
@@ -21,15 +24,26 @@ backend/
 │   ├── chat.py              # POST /api/chat  — natural language input
 │   ├── command.py           # POST /api/command — slash commands
 │   ├── skills.py            # GET /api/skills, GET /api/skills/{name}
-│   └── settings.py          # GET /api/settings, POST /api/settings/llm/test, GET /api/logs
+│   ├── settings.py          # GET /api/settings, LLM test, logs, config public
+│   ├── setup.py             # Setup wizard (6 endpoints)
+│   ├── diagnostics.py       # GET /api/diagnostics, export, logs, /api/health/full
+│   ├── pending_actions.py   # GET/POST approve/reject/list security-gated actions
+│   ├── documents.py         # Index, search, ask, status for RAG pipeline
+│   ├── voice.py             # Transcribe, speak, command, status (STT+TTS)
+│   ├── habits.py            # Event tracking, suggestions, analyze
+│   └── apps_config.py       # App alias configuration
 ├── core/
 │   ├── config.py            # Pydantic settings from .env
 │   ├── schemas.py           # Intent, ActionResult, RiskLevel, LogEntry
-│   ├── router.py            # Slash parser + rule-based NL router
+│   ├── router.py            # Slash parser + rule-based NL router (IT+EN)
 │   ├── registry.py          # Skill auto-discovery and execution
 │   ├── permissions.py       # Risk-based permission guard
 │   ├── assistant.py         # Orchestrator pipeline
-│   └── logger.py            # Loguru structured logging
+│   ├── logger.py            # Loguru structured logging
+│   ├── app_config.py        # Desktop app monitoring configuration
+│   ├── pending_actions.py   # Thread-safe pending actions queue
+│   ├── setup_state.py       # Wizard state management
+│   └── process_monitor.py   # Process detection and monitoring
 ├── llm/
 │   ├── gateway.py           # LLM Gateway — provider routing, JSON mode, intent routing
 │   └── providers/
@@ -37,17 +51,68 @@ backend/
 │       ├── ollama.py        # Ollama local provider
 │       ├── openai_compatible.py  # OpenAI/DeepSeek/LM Studio compatible
 │       └── mock.py          # Mock provider for tests
-├── skills/
+├── voice/
+│   ├── gateway.py           # Voice gateway — STT/TTS provider routing
+│   └── providers/
+│       ├── base.py          # BaseSTTProvider / BaseTTSProvider
+│       ├── mock_stt.py      # Mock STT (placeholder transcriptions)
+│       ├── mock_tts.py      # Mock TTS (logs text)
+│       └── faster_whisper.py # Faster-Whisper STT (code ready)
+├── memory/
+│   ├── extractors.py        # Text + PDF extraction (30+ formats)
+│   ├── chunker.py           # Smart text chunking (1500 char, 200 overlap)
+│   ├── embeddings.py        # Embedding providers (Simple, Mock, Ollama nomic-embed-text)
+│   ├── vector_store.py      # SQLite vector store with cosine similarity
+│   ├── indexer.py           # Pipeline orchestrator: extract → chunk → embed → store
+│   ├── rag_engine.py        # RAG: embed query → search → LLM answer with citations
+│   └── models.py            # Pydantic schemas for document memory
+├── automation/
+│   └── engine.py            # Trigger engine + background scheduler (15s tick)
+├── workflows/
+│   └── engine.py            # Multi-step workflow runner
+├── skills/                   # 19 skills — auto-discovered
 │   ├── base.py              # BaseSkill — every skill inherits from this
-│   ├── chat/                # ChatSkill — uses LLM Gateway when available
+│   ├── chat/                # ChatSkill — uses LLM Gateway
 │   ├── apps/                # AppSkill — open/close/list desktop apps
 │   ├── browser/             # BrowserSkill — open URLs
 │   ├── web_search/          # WebSearchSkill — DuckDuckGo search
 │   ├── system/              # SystemSkill — CPU, RAM, disk stats
 │   ├── timers/              # TimerSkill — countdown timers + notifications
-│   └── ...                  # 8 placeholder skills for future milestones
+│   ├── documents/           # DocumentsSkill — RAG over local files
+│   ├── obs/                 # OBSSkill — OBS Studio control
+│   ├── discord/             # DiscordSkill — Discord app/web/server
+│   ├── spotify/             # SpotifySkill — open, search
+│   ├── github/              # GitHubSkill — repos, issues, git commands
+│   ├── voice/               # VoiceSkill — speech I/O (placeholder M9)
+│   ├── workflows/           # WorkflowSkill — multi-step execution
+│   ├── automations/         # AutomationsSkill — rule-based triggers
+│   ├── habit_learning/      # HabitLearningSkill — pattern detection
+│   ├── files/               # FileSkill — file management
+│   ├── streaming/           # StreamingSkill — streaming setup
+│   ├── study/               # StudySkill — study mode
+│   └── dev/                 # DevSkill — development mode
 ├── db/                      # SQLAlchemy models (SQLite)
-└── voice/                   # Voice pipeline (M9)
+└── tests/                   # 101+ tests across all subsystems
+
+scripts/
+├── setup_local_linux.sh     # One-command Linux setup
+├── setup_local_macos.sh     # One-command macOS setup
+├── setup_local_windows.ps1  # One-command Windows setup
+├── start_jarvis_linux.sh    # Portable desktop launcher (Linux)
+├── start_jarvis_macos.sh    # Portable desktop launcher (macOS)
+├── start_jarvis_windows.ps1 # Portable desktop launcher (Windows)
+├── dev_start_linux.sh       # Dev mode launcher (Linux)
+├── check_environment.py     # Zero-dependency diagnostic tool
+└── pull_recommended_model.sh # Pulls qwen2.5:7b + phi3:mini
+
+data/                        # Runtime data (gitignored)
+├── setup_state.json         # Wizard progress
+├── pending_actions.json     # Security gate queue
+├── memory.db                # SQLite vector store
+├── workflows.json           # Workflow definitions
+├── automations.json         # Automation definitions
+├── habit_events.json        # Habit learning events
+└── jarvis.log               # Application logs
 ```
 
 ---
@@ -56,47 +121,70 @@ backend/
 
 ### Prerequisites
 
-- Python 3.11+
+- Python 3.10+
 - [Ollama](https://ollama.com) (optional, for local LLM)
-- Node.js 18+ (for frontend)
+- Node.js 18+ (for frontend and desktop app)
 
-### Backend Setup
+### One-Command Setup (All Platforms)
 
 ```bash
-# Clone
-git clone https://github.com/Lugozzi04/jarvis-desktop-assistant
-cd jarvis-desktop-assistant
+# Linux
+bash scripts/setup_local_linux.sh
 
-# Create virtual environment
-uv venv
-source .venv/bin/activate
+# macOS
+bash scripts/setup_local_macos.sh
 
-# Install dependencies
-uv pip install -r requirements.txt
-
-# Configure
-cp .env.example .env
-# Edit .env — set LLM provider, model, API keys
-
-# Run
-uvicorn backend.main:app --host 127.0.0.1 --port 8400 --reload
+# Windows (PowerShell)
+.\scripts\setup_local_windows.ps1
 ```
 
-### Frontend Setup
+This installs all dependencies (Python venv, pip packages, npm modules), creates `.env`, and builds the frontend — all in one command.
+
+### Portable Desktop Mode (Recommended for Daily Use)
 
 ```bash
-cd frontend
-npm install
-npm run dev
+# Linux
+bash scripts/start_jarvis_linux.sh
+
+# macOS
+bash scripts/start_jarvis_macos.sh
+
+# Windows
+.\scripts\start_jarvis_windows.ps1
+```
+
+This launches Jarvis as a native desktop app — no browser needed. Electron manages the backend automatically (start, health-check, stop). See [docs/portable-desktop.md](docs/portable-desktop.md) for details.
+
+### Dev Mode (Web + Backend)
+
+```bash
+# Terminal 1: Backend
+source .venv/bin/activate
+uvicorn backend.main:app --host 127.0.0.1 --port 8400 --reload
+
+# Terminal 2: Frontend (web)
+cd frontend && npm run dev
 ```
 
 Open http://localhost:5173 in your browser.
+
+### Dev Desktop Mode (HMR + Electron)
+
+```bash
+cd frontend
+npm run desktop:dev
+```
+
+Starts Vite + Electron. HMR works — edits update instantly. Backend must be started separately.
 
 ### Test the API
 
 ```bash
 # Health check
 curl http://localhost:8400/health
+
+# Full health (all subsystems)
+curl http://localhost:8400/api/health/full
 
 # Chat
 curl -X POST http://localhost:8400/api/chat \
@@ -106,11 +194,17 @@ curl -X POST http://localhost:8400/api/chat \
 # List skills
 curl http://localhost:8400/api/skills
 
-# Test LLM connection
-curl -X POST http://localhost:8400/api/settings/llm/test \
-  -H "Content-Type: application/json" \
-  -d '{"provider": "ollama", "base_url": "http://localhost:11434", "model": "llama3.1:8b"}'
+# Run diagnostics
+curl http://localhost:8400/api/diagnostics
 ```
+
+### Environment Check
+
+```bash
+python scripts/check_environment.py
+```
+
+Zero-dependency diagnostic that checks Python, Node, venv, port, backend, frontend, Ollama, and more. Use `--json` for machine-readable output.
 
 ---
 
@@ -216,17 +310,48 @@ Every action has a risk level:
 
 ## 📊 Current Status
 
-- ✅ FastAPI backend with all API endpoints
-- ✅ 6 functional skills: apps, browser, chat, web_search, system, timers
-- ✅ Skill system: auto-discovery, registry, permission guard
+### Core System
+- ✅ FastAPI backend with 50+ API endpoints across 10 route modules
+- ✅ 19 skills: auto-discovery, registry, permission guard
 - ✅ Intent Router: slash commands + rule-based NL (Italian + English)
-- ✅ LLM Gateway: Ollama + OpenAI-compatible + Mock providers
-- ✅ LLM JSON mode + intent routing
-- ✅ ChatSkill connected to real LLM Gateway
-- ✅ React/Vite/TypeScript frontend with 8 pages
-- ✅ Logs, health, LLM test API endpoints
-- ✅ 42 passing tests (29 original + 12 LLM)
+- ✅ LLM Gateway: Ollama + OpenAI-compatible + Mock providers, JSON mode
+- ✅ Skill system with 6 functional + 4 specialized + 4 mode + 5 infrastructure skills
+
+### User Interface
+- ✅ React/Vite/TypeScript frontend with 13 pages + dark theme
+- ✅ Dashboard with real-time health cards and subsystem status
+- ✅ 8-step Setup Wizard with guided first-run configuration
+- ✅ Electron desktop wrapper: portable mode, BackendManager, loading/error screens
+
+### Advanced Features
+- ✅ Document Memory (RAG): text+PDF extraction, chunking, embeddings, vector search, Q&A
+- ✅ Workflow Engine: multi-step execution, seed workflows
+- ✅ Automation Engine: time/interval/startup triggers, 5 seed automations, background scheduler
+- ✅ Voice System: mock STT/TTS, push-to-talk UI, faster-whisper code ready
+- ✅ Habit Learning: rule-based pattern detection, suggestions, accept/dismiss
+- ✅ Pending Actions Queue: security gate for dangerous actions, approve/reject/expire
+
+### Specialized Skills
+- ✅ OBS Skill: open, status, recording (mock WebSocket)
+- ✅ Discord Skill: open app/web/server
+- ✅ Spotify Skill: open app, web search
+- ✅ GitHub Skill: repos, issues, git status/clone/commit/push
+
+### Operations
+- ✅ Diagnostics: `/api/diagnostics`, export, logs, `/api/health/full`
+- ✅ Environment check: `scripts/check_environment.py` (zero-dependency)
+- ✅ Cross-platform setup scripts (Linux, macOS, Windows)
+- ✅ Portable desktop launcher scripts (Linux, macOS, Windows)
+- ✅ Startup/autostart templates: systemd, LaunchAgent, Task Scheduler, .desktop
+- ✅ Logging: Loguru structured logging + audit trail
+- ✅ Security: risk-based permissions (safe/confirmation/dangerous)
+- ✅ 101+ tests passing
 - ✅ Frontend builds without errors
+- ✅ 16 documentation files covering all subsystems
+
+### Documentation
+- See `docs/` for: architecture, roadmap, portable-desktop, desktop-app, setup-wizard, voice-system, specialized-skills, automation-engine, habit-learning, document-memory, llm-strategy, startup, security, troubleshooting, development, local-pc-test-plan
+- See `RELEASE_CANDIDATE.md` for v0.3.0-rc1 details
 
 ---
 
@@ -239,13 +364,24 @@ Every action has a risk level:
 | M3 | ✅ | Basic skills (6 functional) |
 | M4 | ✅ | Command pipeline hardening |
 | M5 | ✅ | LLM Gateway — Ollama + OpenAI-compatible + Mock providers |
-| M6 | ✅ | Frontend React/Vite/TypeScript — Dashboard, Chat, Skills, Settings, LLM Settings |
-| M7 | 📋 | Workflow engine — multi-step automation |
-| M8 | 📋 | Automation engine — triggers, conditions |
-| M9 | 📋 | Voice system (STT + TTS) |
-| M10 | 📋 | Habit learning |
-| M11 | 📋 | RAG / document memory |
-| M12 | 📋 | Specialized skills (Discord, OBS, Spotify, GitHub) |
+| M6 | ✅ | Frontend React/Vite/TypeScript — 8 initial pages |
+| M7 | ✅ | Workflow engine — multi-step automation |
+| M8 | ✅ | Automation engine — triggers, conditions, background scheduler |
+| M9 | ✅ | Voice system (STT + TTS providers, push-to-talk UI, faster-whisper code ready) |
+| M10 | ✅ | Habit learning — event tracking, pattern analysis, suggestions |
+| M11 | ✅ | RAG / Document memory — extraction, chunking, embeddings, vector search, Q&A |
+| M12 | ✅ | Specialized skills (Discord, OBS, Spotify, GitHub) |
+| M13 | ✅ | Electron desktop wrapper |
+| M14 | ✅ | Startup / launcher scripts + systemd/LaunchAgent/Task Scheduler templates |
+| M15 | ✅ | Portable desktop app — BackendManager, loading screen, diagnostics, setup wizard, pending actions |
+| Future | 📋 | Edge TTS, wake word, OBS WebSocket, Discord bot, Spotify OAuth, streaming transcription, visual workflow builder, Tauri wrapper, installer, plugin marketplace, mobile companion |
+
+### Current Focus: Release Candidate Testing
+
+- 🟡 Fixing RC1 bugs
+- 🟡 Edge TTS real provider (top priority for v0.3.1)
+- 🟡 Wake word detection
+- See `RELEASE_CANDIDATE.md` for full status
 
 ---
 
