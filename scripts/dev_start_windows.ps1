@@ -1,4 +1,4 @@
-# Jarvis Desktop Assistant — Dev Start (Windows)
+﻿# Jarvis Desktop Assistant — Dev Start (Windows)
 # Starts backend + frontend in dev mode.
 # Usage: Right-click → Run with PowerShell, or: .\scripts\dev_start_windows.ps1
 

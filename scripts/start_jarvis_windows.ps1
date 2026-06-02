@@ -1,4 +1,4 @@
-# Jarvis Desktop Assistant — Start (Windows)
+﻿# Jarvis Desktop Assistant — Start (Windows)
 # Opens Jarvis as a desktop app. Backend auto-managed by Electron.
 # Usage: .\scripts\start_jarvis_windows.ps1
 

@@ -1,4 +1,4 @@
-# Jarvis Desktop Assistant — Local Setup (Windows)
+﻿# Jarvis Desktop Assistant — Local Setup (Windows)
 # Installs all dependencies. Does NOT install Ollama or download models.
 # Usage: Right-click → Run with PowerShell
 #    or: powershell -ExecutionPolicy Bypass -File scripts/setup_local_windows.ps1

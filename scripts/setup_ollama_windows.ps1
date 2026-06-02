@@ -1,4 +1,4 @@
-#!/usr/bin/env pwsh
+﻿#!/usr/bin/env pwsh
 # setup_ollama_windows.ps1 — Install Ollama and pull the recommended model on Windows
 # Run this on your LOCAL PC, not on a VPS/server.
 # Usage: .\scripts\setup_ollama_windows.ps1
