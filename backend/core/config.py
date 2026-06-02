@@ -18,7 +18,7 @@ class LLMConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="LLM_")
 
     default_provider: str = "ollama"
-    default_model: str = "llama3.1:8b"
+    default_model: str = "qwen2.5:7b"
     base_url: str = "http://localhost:11434"
     api_key: str = ""
     router_model: str = "phi3:mini"

@@ -26,6 +26,16 @@ class BaseLLMProvider(ABC):
         """Check if the provider is reachable."""
         ...
 
+    async def get_detailed_status(self) -> dict[str, Any]:
+        """Get detailed provider status. Override for rich diagnostics."""
+        available = await self.is_available()
+        return {
+            "provider": self.name,
+            "available": available,
+            "ready": available,
+            "reachable": available,
+        }
+
     async def generate_json(
         self,
         messages: list[dict[str, str]],
