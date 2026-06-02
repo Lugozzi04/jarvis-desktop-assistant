@@ -126,4 +126,18 @@ export const api = {
     }),
   workflows: () => fetchAPI<{ workflows: unknown[] }>('/api/workflows'),
   automations: () => fetchAPI<{ automations: unknown[] }>('/api/automations'),
+  automation: (id: string) => fetchAPI(`/api/automations/${id}`),
+  createAutomation: (data: unknown) =>
+    fetchAPI('/api/automations', { method: 'POST', body: JSON.stringify(data) }),
+  updateAutomation: (id: string, data: unknown) =>
+    fetchAPI(`/api/automations/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteAutomation: (id: string) =>
+    fetchAPI(`/api/automations/${id}`, { method: 'DELETE' }),
+  enableAutomation: (id: string) =>
+    fetchAPI(`/api/automations/${id}/enable`, { method: 'POST' }),
+  disableAutomation: (id: string) =>
+    fetchAPI(`/api/automations/${id}/disable`, { method: 'POST' }),
+  runAutomation: (id: string) =>
+    fetchAPI(`/api/automations/${id}/run`, { method: 'POST' }),
+  automationEngineStatus: () => fetchAPI('/api/automations/engine/status'),
 };
