@@ -8,6 +8,8 @@ import Automations from './pages/Automations';
 import Logs from './pages/Logs';
 import Settings from './pages/Settings';
 import LLMSettings from './pages/LLMSettings';
+import Voice from './pages/Voice';
+import Habits from './pages/Habits';
 
 function App() {
   return (
@@ -22,6 +24,8 @@ function App() {
           <Route path="/logs" element={<Logs />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/settings/llm" element={<LLMSettings />} />
+          <Route path="/voice" element={<Voice />} />
+          <Route path="/habits" element={<Habits />} />
         </Route>
       </Routes>
     </BrowserRouter>
