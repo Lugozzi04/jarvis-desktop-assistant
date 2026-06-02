@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
-import type { LLMStatus, MemoryStatus } from '../api';
+import type { LLMStatus, MemoryStatus, SkillDetail } from '../api';
 
 const API_BASE = 'http://localhost:8400';
 
@@ -63,17 +63,105 @@ interface LLMTestResultRaw {
   error?: string;
 }
 
+interface DiagnosticsData {
+  timestamp: string;
+  version: string;
+  environment: {
+    python: string;
+    system: string;
+    release: string;
+    machine: string;
+    node: string;
+  };
+  config_public: {
+    version: string;
+    env: string;
+    llm_provider: string;
+    llm_model: string;
+    allow_cloud: boolean;
+    embedding_provider: string;
+    voice_enabled: boolean;
+  };
+  skills: { loaded: string[] };
+  backend: { online: boolean; version: string; skills_loaded: number; initialized: boolean };
+  llm: {
+    provider: string;
+    available: boolean;
+    model: string;
+    error?: string;
+    providers?: Record<string, { configured: boolean }>;
+    allow_cloud?: boolean;
+  };
+}
+
+interface SmokeTestResult {
+  name: string;
+  endpoint: string;
+  status: 'pass' | 'fail' | 'running' | 'pending';
+  detail: string;
+  response_time_ms?: number;
+}
+
 // ── Steps definition ───────────────────────────────────────────────────────
 
 const STEPS = [
   { num: 1, title: 'Welcome', icon: '👋' },
-  { num: 2, title: 'System Check', icon: '🔍' },
-  { num: 3, title: 'LLM Setup', icon: '🧠' },
-  { num: 4, title: 'Documents', icon: '📄' },
-  { num: 5, title: 'Voice', icon: '🎤' },
-  { num: 6, title: 'Integrations', icon: '🔌' },
-  { num: 7, title: 'Security', icon: '🔒' },
-  { num: 8, title: 'Finish', icon: '✅' },
+  { num: 2, title: 'System Health', icon: '🔍' },
+  { num: 3, title: 'Usage Mode', icon: '⚙️' },
+  { num: 4, title: 'LLM Setup', icon: '🧠' },
+  { num: 5, title: 'Common Apps', icon: '📱' },
+  { num: 6, title: 'Documents', icon: '📄' },
+  { num: 7, title: 'Voice', icon: '🎤' },
+  { num: 8, title: 'Integrations', icon: '🔌' },
+  { num: 9, title: 'Security', icon: '🔒' },
+  { num: 10, title: 'Diagnostics', icon: '🩺' },
+  { num: 11, title: 'Smoke Test', icon: '🧪' },
+  { num: 12, title: 'Finish', icon: '✅' },
+];
+
+// ── Usage mode options ─────────────────────────────────────────────────────
+
+type UsageMode = 'mock' | 'ollama' | 'cloud';
+
+const USAGE_MODES: { key: UsageMode; label: string; desc: string; icon: string; pro: string; con: string }[] = [
+  {
+    key: 'mock',
+    label: 'Mock Demo',
+    desc: 'Try JARVIS without any LLM setup. Uses simulated responses.',
+    icon: '🎭',
+    pro: 'Zero setup, works instantly',
+    con: 'No real AI — canned responses only',
+  },
+  {
+    key: 'ollama',
+    label: 'Local Ollama',
+    desc: 'Run AI fully offline with Ollama. Private and no API costs.',
+    icon: '🏠',
+    pro: 'Private, offline, free, unlimited',
+    con: 'Requires local GPU/RAM for good performance',
+  },
+  {
+    key: 'cloud',
+    label: 'Cloud LLM',
+    desc: 'Use OpenAI / Anthropic / DeepSeek via API key. Fast, smart, no local GPU needed.',
+    icon: '☁️',
+    pro: 'Best quality, no local hardware needed',
+    con: 'Requires API key, pay-per-use, sends data to cloud',
+  },
+];
+
+// ── Known common apps ──────────────────────────────────────────────────────
+
+const COMMON_APPS = [
+  { key: 'discord', label: 'Discord', icon: '🎮', command: 'discord' },
+  { key: 'spotify', label: 'Spotify', icon: '🎵', command: 'spotify' },
+  { key: 'vscode', label: 'VS Code', icon: '💻', command: 'code' },
+  { key: 'obs', label: 'OBS Studio', icon: '🎥', command: 'obs' },
+  { key: 'terminal', label: 'Terminal', icon: '⬛', command: 'gnome-terminal' },
+  { key: 'browser', label: 'Browser', icon: '🌐', command: 'firefox' },
+  { key: 'files', label: 'File Manager', icon: '📁', command: 'nautilus' },
+  { key: 'calculator', label: 'Calculator', icon: '🔢', command: 'gnome-calculator' },
+  { key: 'settings', label: 'Settings', icon: '⚙️', command: 'gnome-control-center' },
 ];
 
 // ── Component ──────────────────────────────────────────────────────────────
@@ -83,28 +171,49 @@ function SetupWizard() {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
+  const [stepLoading, setStepLoading] = useState(false);
 
   // Step 2: System Check
   const [fullHealth, setFullHealth] = useState<FullHealth | null>(null);
 
-  // Step 3: LLM
+  // Step 3: Usage Mode
+  const [usageMode, setUsageMode] = useState<UsageMode>('ollama');
+
+  // Step 4: LLM
   const [llmStatus, setLlmStatus] = useState<LLMStatus | null>(null);
   const [testingLLM, setTestingLLM] = useState(false);
   const [llmTestResult, setLlmTestResult] = useState<LLMTestResultRaw | null>(null);
 
-  // Step 4: Documents
+  // Step 5: Common Apps
+  const [appsSkill, setAppsSkill] = useState<SkillDetail | null>(null);
+  const [enabledApps, setEnabledApps] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    COMMON_APPS.forEach(a => { initial[a.key] = true; });
+    return initial;
+  });
+
+  // Step 6: Documents
   const [docStatus, setDocStatus] = useState<MemoryStatus | null>(null);
 
-  // Step 5: Voice
+  // Step 7: Voice
   const [voiceStatus, setVoiceStatus] = useState<VoiceStatusRaw | null>(null);
 
-  // Step 6: Integrations
+  // Step 8: Integrations
   const [integrations, setIntegrations] = useState({
     obs: false,
     discord: false,
     spotify: false,
     github: false,
   });
+
+  // Step 10: Diagnostics
+  const [diagnosticsData, setDiagnosticsData] = useState<DiagnosticsData | null>(null);
+  const [diagnosticsError, setDiagnosticsError] = useState<string | null>(null);
+
+  // Step 11: Smoke Test
+  const [smokeResults, setSmokeResults] = useState<SmokeTestResult[]>([]);
+  const [smokeRunning, setSmokeRunning] = useState(false);
+  const [smokeSummary, setSmokeSummary] = useState<{ pass: number; fail: number } | null>(null);
 
   const toggleIntegration = (key: keyof typeof integrations) => {
     setIntegrations(prev => ({ ...prev, [key]: !prev[key] }));
@@ -125,6 +234,13 @@ function SetupWizard() {
     } catch { /* ignore */ }
   }, []);
 
+  const loadApps = useCallback(async () => {
+    try {
+      const skill = await api.skillDetail('apps');
+      setAppsSkill(skill);
+    } catch { /* ignore - apps skill may not be loaded */ }
+  }, []);
+
   const loadDocuments = useCallback(async () => {
     try {
       setDocStatus(await api.documentsStatus());
@@ -138,6 +254,20 @@ function SetupWizard() {
     } catch { /* ignore */ }
   }, []);
 
+  const loadDiagnostics = useCallback(async () => {
+    setStepLoading(true);
+    setDiagnosticsError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/diagnostics`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setDiagnosticsData(await res.json());
+    } catch (err) {
+      setDiagnosticsError(err instanceof Error ? err.message : 'Failed to load diagnostics');
+    } finally {
+      setStepLoading(false);
+    }
+  }, []);
+
   // Load system check on mount
   useEffect(() => {
     loadSystemCheck().finally(() => setLoading(false));
@@ -145,10 +275,12 @@ function SetupWizard() {
 
   // Load step-specific data when arriving at that step
   useEffect(() => {
-    if (step === 2) loadLLM();
-    if (step === 3) loadDocuments();
-    if (step === 4) loadVoice();
-  }, [step, loadLLM, loadDocuments, loadVoice]);
+    if (step === 3) loadLLM();
+    if (step === 4) loadApps();
+    if (step === 5) loadDocuments();
+    if (step === 6) loadVoice();
+    if (step === 9) loadDiagnostics();
+  }, [step, loadLLM, loadApps, loadDocuments, loadVoice, loadDiagnostics]);
 
   // ── LLM test ──────────────────────────────────────────────────────────
 
@@ -173,6 +305,53 @@ function SetupWizard() {
     } finally {
       setTestingLLM(false);
     }
+  };
+
+  // ── Smoke test ────────────────────────────────────────────────────────
+
+  const smokeEndpoints = [
+    { name: 'Health Check', endpoint: '/health', method: 'GET' },
+    { name: 'Full Health', endpoint: '/api/health/full', method: 'GET' },
+    { name: 'Skills List', endpoint: '/api/skills', method: 'GET' },
+    { name: 'LLM Status', endpoint: '/api/llm/status', method: 'GET' },
+    { name: 'Documents Status', endpoint: '/api/documents/status', method: 'GET' },
+    { name: 'Voice Status', endpoint: '/api/voice/status', method: 'GET' },
+    { name: 'Workflows', endpoint: '/api/workflows', method: 'GET' },
+    { name: 'Automations', endpoint: '/api/automations', method: 'GET' },
+    { name: 'Diagnostics', endpoint: '/api/diagnostics', method: 'GET' },
+    { name: 'Config Public', endpoint: '/api/config/public', method: 'GET' },
+    { name: 'Setup Status', endpoint: '/api/setup/status', method: 'GET' },
+  ];
+
+  const runSmokeTest = async () => {
+    setSmokeRunning(true);
+    setSmokeSummary(null);
+    const results: SmokeTestResult[] = [];
+
+    for (const check of smokeEndpoints) {
+      setSmokeResults([...results, { name: check.name, endpoint: check.endpoint, status: 'running', detail: 'Testing...' }]);
+      const start = performance.now();
+      try {
+        const res = await fetch(`${API_BASE}${check.endpoint}`);
+        const elapsed = Math.round(performance.now() - start);
+        if (res.ok) {
+          results.push({ name: check.name, endpoint: check.endpoint, status: 'pass', detail: `OK (${res.status})`, response_time_ms: elapsed });
+        } else {
+          results.push({ name: check.name, endpoint: check.endpoint, status: 'fail', detail: `HTTP ${res.status}`, response_time_ms: elapsed });
+        }
+      } catch (err) {
+        const elapsed = Math.round(performance.now() - start);
+        results.push({ name: check.name, endpoint: check.endpoint, status: 'fail', detail: err instanceof Error ? err.message : 'Connection failed', response_time_ms: elapsed });
+      }
+      setSmokeResults([...results]);
+    }
+
+    setSmokeResults(results);
+    setSmokeSummary({
+      pass: results.filter(r => r.status === 'pass').length,
+      fail: results.filter(r => r.status === 'fail').length,
+    });
+    setSmokeRunning(false);
   };
 
   // ── Copy to clipboard ─────────────────────────────────────────────────
@@ -205,6 +384,14 @@ function SetupWizard() {
   // ── Loading state ─────────────────────────────────────────────────────
 
   if (loading) return <div className="loading"><div className="spinner" /></div>;
+
+  // ── Helper: status badge ──────────────────────────────────────────────
+
+  const StatusBadge = ({ ok, okLabel, failLabel }: { ok: boolean; okLabel?: string; failLabel?: string }) => (
+    <span className={`badge ${ok ? 'badge-success' : 'badge-danger'}`}>
+      {ok ? (okLabel || 'Online') : (failLabel || 'Offline')}
+    </span>
+  );
 
   // ── Step renderers ────────────────────────────────────────────────────
 
@@ -268,9 +455,7 @@ function SetupWizard() {
           <div className="card">
             <div className="card-header" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span>🖥️</span> Backend
-              <span className={`badge ${backendOk ? 'badge-success' : 'badge-danger'}`} style={{ marginLeft: 'auto' }}>
-                {backendOk ? 'Online' : 'Offline'}
-              </span>
+              <StatusBadge ok={backendOk} okLabel="Online" failLabel="Offline" />
             </div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
               {fh ? (
@@ -368,10 +553,76 @@ function SetupWizard() {
     );
   };
 
-  const renderStep3LLM = () => {
+  const renderStep3UsageMode = () => (
+    <div style={{ maxWidth: 750, margin: '0 auto' }}>
+      <div style={{ textAlign: 'center', marginBottom: 28 }}>
+        <h2 style={{ fontSize: '1.5rem', marginBottom: 8 }}>Choose Usage Mode</h2>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+          How do you want to use JARVIS?
+        </p>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 28 }}>
+        {USAGE_MODES.map(mode => (
+          <div
+            key={mode.key}
+            className="card"
+            onClick={() => setUsageMode(mode.key)}
+            style={{
+              cursor: 'pointer',
+              borderColor: usageMode === mode.key ? 'var(--accent)' : 'var(--border)',
+              background: usageMode === mode.key ? 'var(--accent-glow)' : 'var(--bg-card)',
+              transition: 'all 0.2s',
+            }}
+          >
+            <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+              <div style={{ fontSize: '2.2rem', flexShrink: 0, lineHeight: 1 }}>{mode.icon}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontWeight: 600, fontSize: '1rem' }}>{mode.label}</span>
+                  {usageMode === mode.key && (
+                    <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>Selected</span>
+                  )}
+                </div>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 8 }}>{mode.desc}</p>
+                <div style={{ display: 'flex', gap: 16, fontSize: '0.75rem' }}>
+                  <span style={{ color: 'var(--success)' }}>✅ {mode.pro}</span>
+                  <span style={{ color: 'var(--text-muted)' }}>⚠️ {mode.con}</span>
+                </div>
+              </div>
+              <div style={{
+                width: 22, height: 22,
+                borderRadius: '50%',
+                border: `2px solid ${usageMode === mode.key ? 'var(--accent)' : 'var(--border)'}`,
+                background: usageMode === mode.key ? 'var(--accent)' : 'transparent',
+                flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {usageMode === mode.key && <span style={{ color: 'white', fontSize: '0.7rem' }}>✓</span>}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="card" style={{
+        borderColor: 'rgba(99,102,241,0.3)',
+        background: 'rgba(99,102,241,0.04)',
+      }}>
+        <div className="card-header">💡 Recommendation</div>
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+          {usageMode === 'mock' && 'Mock Demo is great for exploring the UI and testing skills without any dependencies. Switch to Ollama or Cloud later for real AI power.'}
+          {usageMode === 'ollama' && 'Local Ollama is the recommended setup for privacy-first users. Install Ollama, pull a model (like qwen2.5:7b), and you\'re ready. Best experience on a machine with 8GB+ RAM.'}
+          {usageMode === 'cloud' && 'Cloud LLM gives you the best quality responses instantly. You\'ll need an API key from your preferred provider. Configure it in the next step.'}
+        </p>
+      </div>
+    </div>
+  );
+
+  const renderStep4LLM = () => {
     const ls = llmStatus;
-    const recommendedCmd = 'ollama pull qwen2.5:7b';
-    const provider = ls?.provider || 'ollama';
+    const recommendedCmd = usageMode === 'cloud' ? 'Set your API key in Settings → LLM' : 'ollama pull qwen2.5:7b';
+    const provider = ls?.provider || 'none';
     const model = ls?.model || 'none';
     const available = ls?.available ?? false;
 
@@ -380,7 +631,12 @@ function SetupWizard() {
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <h2 style={{ fontSize: '1.5rem', marginBottom: 8 }}>LLM Setup</h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-            Connect to a local LLM for private, offline AI
+            {usageMode === 'mock'
+              ? 'No LLM needed — using mock responses for demo mode'
+              : usageMode === 'cloud'
+                ? 'Configure your cloud LLM provider and API key'
+                : 'Connect to Ollama for private, offline AI'
+            }
           </p>
         </div>
 
@@ -399,7 +655,7 @@ function SetupWizard() {
           </div>
         </div>
 
-        {/* Status Details */}
+        {/* Provider Details */}
         <div className="card" style={{ marginBottom: 20 }}>
           <div className="card-header">Provider Details</div>
           <div style={{ fontSize: '0.85rem', display: 'grid', gap: 8 }}>
@@ -425,34 +681,70 @@ function SetupWizard() {
           </div>
         </div>
 
-        {/* Recommended: pull qwen2.5:7b */}
-        <div className="card" style={{
-          marginBottom: 20,
-          borderColor: 'var(--warning)',
-          background: 'rgba(245,158,11,0.05)',
-        }}>
-          <div className="card-header">⚡ Recommended Model: qwen2.5:7b</div>
-          <p style={{ fontSize: '0.85rem', marginBottom: 12, color: 'var(--text-secondary)' }}>
-            Run this command on your <strong>local machine</strong> to pull the recommended Ollama model:
-          </p>
-          <div style={{
-            display: 'flex', gap: 8, alignItems: 'center',
-            background: 'var(--bg-primary)', padding: '12px 16px',
-            borderRadius: 'var(--radius)', fontFamily: 'monospace', fontSize: '0.9rem',
+        {/* Action card — changes based on usage mode */}
+        {usageMode === 'ollama' && (
+          <div className="card" style={{
+            marginBottom: 20,
+            borderColor: 'var(--warning)',
+            background: 'rgba(245,158,11,0.05)',
           }}>
-            <code style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'auto' }}>{recommendedCmd}</code>
-            <button
-              className="btn btn-sm btn-secondary"
-              onClick={() => copyCommand(recommendedCmd)}
-              style={{ flexShrink: 0 }}
-            >
-              📋 Copy
-            </button>
+            <div className="card-header">⚡ Recommended Model: qwen2.5:7b</div>
+            <p style={{ fontSize: '0.85rem', marginBottom: 12, color: 'var(--text-secondary)' }}>
+              Run this command on your <strong>local machine</strong> to pull the recommended Ollama model:
+            </p>
+            <div style={{
+              display: 'flex', gap: 8, alignItems: 'center',
+              background: 'var(--bg-primary)', padding: '12px 16px',
+              borderRadius: 'var(--radius)', fontFamily: 'monospace', fontSize: '0.9rem',
+            }}>
+              <code style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'auto' }}>{recommendedCmd}</code>
+              <button
+                className="btn btn-sm btn-secondary"
+                onClick={() => copyCommand(recommendedCmd)}
+                style={{ flexShrink: 0 }}
+              >
+                📋 Copy
+              </button>
+            </div>
+            <p style={{ marginTop: 10, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              After pulling, restart JARVIS and refresh below to see the model ready.
+            </p>
           </div>
-          <p style={{ marginTop: 10, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            After pulling, restart JARVIS and refresh below to see the model ready.
-          </p>
-        </div>
+        )}
+
+        {usageMode === 'cloud' && (
+          <div className="card" style={{
+            marginBottom: 20,
+            borderColor: 'rgba(99,102,241,0.3)',
+            background: 'rgba(99,102,241,0.04)',
+          }}>
+            <div className="card-header">☁️ Cloud LLM Setup</div>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 12 }}>
+              Go to <strong>Settings → LLM</strong> to configure your cloud provider. Supported: OpenAI, Anthropic, DeepSeek, OpenRouter, Groq.
+            </p>
+            <ol style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', paddingLeft: 20, lineHeight: 2 }}>
+              <li>Choose your provider (OpenAI, Anthropic, etc.)</li>
+              <li>Paste your API key</li>
+              <li>Select a model (e.g., gpt-4o, claude-3.5-sonnet)</li>
+              <li>Enable "Allow Cloud LLM"</li>
+            </ol>
+          </div>
+        )}
+
+        {usageMode === 'mock' && (
+          <div className="card" style={{
+            marginBottom: 20,
+            borderColor: 'rgba(99,102,241,0.3)',
+            background: 'rgba(99,102,241,0.04)',
+          }}>
+            <div className="card-header">🎭 Mock Demo Mode</div>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              Mock mode uses simulated responses so you can explore JARVIS without any setup.
+              Skills and commands still work — responses are pre-written examples.
+              Switch to Ollama or Cloud anytime from the LLM Settings page.
+            </p>
+          </div>
+        )}
 
         {/* Test Connection */}
         <div>
@@ -495,7 +787,110 @@ function SetupWizard() {
     );
   };
 
-  const renderStep4Documents = () => {
+  const renderStep5CommonApps = () => {
+    const skillLoaded = appsSkill !== null;
+    const enabledCount = Object.values(enabledApps).filter(Boolean).length;
+
+    const toggleApp = (key: string) => {
+      setEnabledApps(prev => ({ ...prev, [key]: !prev[key] }));
+    };
+
+    return (
+      <div style={{ maxWidth: 700, margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <h2 style={{ fontSize: '1.5rem', marginBottom: 8 }}>Configure Common Apps</h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+            JARVIS can open and manage these desktop applications by voice or chat command
+          </p>
+        </div>
+
+        {/* Skill status */}
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: '1.3rem' }}>📱</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                Apps Skill — {skillLoaded ? (
+                  <span style={{ color: 'var(--success)' }}>✅ Loaded</span>
+                ) : (
+                  <span style={{ color: 'var(--warning)' }}>⚠️ Not detected</span>
+                )}
+              </div>
+              {appsSkill && (
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                  v{appsSkill.version} · {appsSkill.actions?.length || 0} actions: {appsSkill.actions?.map(a => a.name).join(', ') || 'open, close, list'}
+                </div>
+              )}
+            </div>
+            <button className="btn btn-sm btn-secondary" onClick={loadApps}>🔄 Refresh</button>
+          </div>
+        </div>
+
+        {/* App cards */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+          {COMMON_APPS.map(app => (
+            <div
+              key={app.key}
+              className="card"
+              onClick={() => toggleApp(app.key)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                cursor: 'pointer',
+                borderColor: enabledApps[app.key] ? 'rgba(34,197,94,0.3)' : 'var(--border)',
+                background: enabledApps[app.key] ? 'rgba(34,197,94,0.03)' : 'var(--bg-card)',
+                transition: 'all 0.15s',
+              }}
+            >
+              <div style={{ fontSize: '1.4rem', flexShrink: 0 }}>{app.icon}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{app.label}</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  <code style={{ background: 'var(--bg-primary)', padding: '1px 6px', borderRadius: 3, fontSize: '0.7rem' }}>{app.command}</code>
+                </div>
+              </div>
+              <div style={{
+                width: 42, height: 24,
+                borderRadius: 12,
+                background: enabledApps[app.key] ? 'var(--success)' : 'var(--border)',
+                position: 'relative',
+                transition: 'background 0.15s',
+                flexShrink: 0,
+              }}>
+                <div style={{
+                  width: 18, height: 18,
+                  borderRadius: '50%',
+                  background: 'white',
+                  position: 'absolute',
+                  top: 3,
+                  left: enabledApps[app.key] ? 21 : 3,
+                  transition: 'left 0.15s',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                }} />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Summary */}
+        <div className="card" style={{
+          borderColor: 'rgba(99,102,241,0.2)',
+          background: 'rgba(99,102,241,0.04)',
+        }}>
+          <div style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+            <strong>{enabledCount}</strong> of {COMMON_APPS.length} apps enabled.
+            {enabledCount === 0
+              ? ' Enable at least a few for the best experience.'
+              : ' Use "open &lt;app name&gt;" in chat or voice to launch them.'
+            }
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderStep6Documents = () => {
     const ds = docStatus;
     const provider = ds?.embedding_provider || 'none';
     const ready = ds?.ready ?? false;
@@ -589,7 +984,7 @@ function SetupWizard() {
     );
   };
 
-  const renderStep5Voice = () => {
+  const renderStep7Voice = () => {
     const vs = voiceStatus;
     const sttOk = vs?.stt_available ?? false;
     const ttsOk = vs?.tts_available ?? false;
@@ -676,32 +1071,12 @@ function SetupWizard() {
     );
   };
 
-  const renderStep6Integrations = () => {
+  const renderStep8Integrations = () => {
     const integrationOptions = [
-      {
-        key: 'obs' as const,
-        label: 'OBS Studio',
-        desc: 'Streaming & recording control',
-        icon: '🎥',
-      },
-      {
-        key: 'discord' as const,
-        label: 'Discord',
-        desc: 'Rich presence & notifications',
-        icon: '🎮',
-      },
-      {
-        key: 'spotify' as const,
-        label: 'Spotify',
-        desc: 'Music playback control',
-        icon: '🎵',
-      },
-      {
-        key: 'github' as const,
-        label: 'GitHub',
-        desc: 'Repo & issue management',
-        icon: '🐙',
-      },
+      { key: 'obs' as const, label: 'OBS Studio', desc: 'Streaming & recording control', icon: '🎥' },
+      { key: 'discord' as const, label: 'Discord', desc: 'Rich presence & notifications', icon: '🎮' },
+      { key: 'spotify' as const, label: 'Spotify', desc: 'Music playback control', icon: '🎵' },
+      { key: 'github' as const, label: 'GitHub', desc: 'Repo & issue management', icon: '🐙' },
     ];
 
     const anySelected = Object.values(integrations).some(Boolean);
@@ -767,7 +1142,7 @@ function SetupWizard() {
     );
   };
 
-  const renderStep7Security = () => (
+  const renderStep9Security = () => (
     <div style={{ maxWidth: 700, margin: '0 auto' }}>
       <div style={{ textAlign: 'center', marginBottom: 28 }}>
         <h2 style={{ fontSize: '1.5rem', marginBottom: 8 }}>Security</h2>
@@ -821,14 +1196,241 @@ function SetupWizard() {
     </div>
   );
 
-  const renderStep8Finish = () => (
+  const renderStep10Diagnostics = () => (
+    <div style={{ maxWidth: 750, margin: '0 auto' }}>
+      <div style={{ textAlign: 'center', marginBottom: 28 }}>
+        <h2 style={{ fontSize: '1.5rem', marginBottom: 8 }}>Run Diagnostics</h2>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+          System diagnostic information — no secrets, safe to share
+        </p>
+      </div>
+
+      {stepLoading && (
+        <div style={{ textAlign: 'center', padding: 40 }}>
+          <div className="spinner" style={{ margin: '0 auto' }} />
+          <p style={{ color: 'var(--text-muted)', marginTop: 12 }}>Loading diagnostics...</p>
+        </div>
+      )}
+
+      {diagnosticsError && !stepLoading && (
+        <div className="card" style={{
+          background: 'rgba(239,68,68,0.06)',
+          border: '1px solid rgba(239,68,68,0.2)',
+          marginBottom: 16,
+        }}>
+          <div className="card-header">⚠️ Failed to load diagnostics</div>
+          <p style={{ fontSize: '0.85rem', color: 'var(--danger)' }}>{diagnosticsError}</p>
+          <button className="btn btn-primary" style={{ marginTop: 8 }} onClick={loadDiagnostics}>
+            🔄 Retry
+          </button>
+        </div>
+      )}
+
+      {diagnosticsData && !stepLoading && (
+        <>
+          {/* Summary banner */}
+          <div className="card" style={{
+            background: diagnosticsData.backend?.online ? 'rgba(34,197,94,0.04)' : 'rgba(239,68,68,0.04)',
+            borderColor: diagnosticsData.backend?.online ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+            marginBottom: 20,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: '1.2rem' }}>{diagnosticsData.backend?.online ? '✅' : '❌'}</span>
+              <div style={{ flex: 1, fontSize: '0.85rem' }}>
+                <strong>JARVIS v{diagnosticsData.version}</strong> ·
+                Backend: {diagnosticsData.backend?.online ? 'Online' : 'Offline'} ·
+                Skills: {diagnosticsData.skills?.loaded?.length ?? 0} loaded
+              </div>
+              <button className="btn btn-sm btn-secondary" onClick={loadDiagnostics}>🔄 Refresh</button>
+            </div>
+          </div>
+
+          {/* Environment */}
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="card-header">💻 Environment</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: '0.83rem' }}>
+              <div><span style={{ color: 'var(--text-muted)' }}>System:</span> <strong>{diagnosticsData.environment.system} {diagnosticsData.environment.release}</strong></div>
+              <div><span style={{ color: 'var(--text-muted)' }}>Machine:</span> <strong>{diagnosticsData.environment.machine}</strong></div>
+              <div><span style={{ color: 'var(--text-muted)' }}>Python:</span> <strong>{diagnosticsData.environment.python}</strong></div>
+              <div><span style={{ color: 'var(--text-muted)' }}>Node:</span> <strong>{diagnosticsData.environment.node}</strong></div>
+            </div>
+          </div>
+
+          {/* Configuration */}
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="card-header">⚙️ Public Configuration</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: '0.83rem' }}>
+              <div><span style={{ color: 'var(--text-muted)' }}>Env:</span> <span className="badge badge-info">{diagnosticsData.config_public.env}</span></div>
+              <div><span style={{ color: 'var(--text-muted)' }}>LLM Provider:</span> <strong>{diagnosticsData.config_public.llm_provider}</strong></div>
+              <div><span style={{ color: 'var(--text-muted)' }}>LLM Model:</span> <strong>{diagnosticsData.config_public.llm_model}</strong></div>
+              <div><span style={{ color: 'var(--text-muted)' }}>Cloud LLM:</span> <span className={`badge ${diagnosticsData.config_public.allow_cloud ? 'badge-success' : 'badge-warning'}`}>{diagnosticsData.config_public.allow_cloud ? 'Allowed' : 'Blocked'}</span></div>
+              <div><span style={{ color: 'var(--text-muted)' }}>Embeddings:</span> <strong>{diagnosticsData.config_public.embedding_provider}</strong></div>
+              <div><span style={{ color: 'var(--text-muted)' }}>Voice:</span> <span className={`badge ${diagnosticsData.config_public.voice_enabled ? 'badge-success' : 'badge-warning'}`}>{diagnosticsData.config_public.voice_enabled ? 'Enabled' : 'Disabled'}</span></div>
+            </div>
+          </div>
+
+          {/* LLM */}
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="card-header">🧠 LLM Status</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: '0.83rem' }}>
+              <div><span style={{ color: 'var(--text-muted)' }}>Provider:</span> <strong>{diagnosticsData.llm.provider || 'none'}</strong></div>
+              <div><span style={{ color: 'var(--text-muted)' }}>Model:</span> <strong>{diagnosticsData.llm.model || 'none'}</strong></div>
+              <div><span style={{ color: 'var(--text-muted)' }}>Available:</span> <span className={`badge ${diagnosticsData.llm.available ? 'badge-success' : 'badge-warning'}`}>{diagnosticsData.llm.available ? 'Yes' : 'No'}</span></div>
+              {diagnosticsData.llm.error && (
+                <div style={{ gridColumn: '1 / -1' }}><span style={{ color: 'var(--text-muted)' }}>Error:</span> <span style={{ color: 'var(--danger)' }}>{diagnosticsData.llm.error}</span></div>
+              )}
+            </div>
+          </div>
+
+          {/* Skills */}
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="card-header">🔧 Loaded Skills ({diagnosticsData.skills?.loaded?.length ?? 0})</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {diagnosticsData.skills?.loaded?.length > 0
+                ? diagnosticsData.skills.loaded.map(s => (
+                    <span key={s} className="badge badge-info" style={{ fontSize: '0.72rem' }}>{s}</span>
+                  ))
+                : <span style={{ color: 'var(--text-muted)', fontSize: '0.83rem' }}>No skills loaded</span>
+              }
+            </div>
+          </div>
+
+          {/* Timestamp */}
+          <div style={{ textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 8 }}>
+            Snapshot taken: {new Date(diagnosticsData.timestamp).toLocaleString()}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  const renderStep11SmokeTest = () => (
+    <div style={{ maxWidth: 750, margin: '0 auto' }}>
+      <div style={{ textAlign: 'center', marginBottom: 28 }}>
+        <h2 style={{ fontSize: '1.5rem', marginBottom: 8 }}>Smoke Test</h2>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+          Quick validation — checks all API endpoints respond correctly
+        </p>
+      </div>
+
+      {/* Run button */}
+      {!smokeRunning && smokeResults.length === 0 && (
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: 16 }}>
+            This will run {smokeEndpoints.length} quick checks against the backend API.
+            All checks are read-only and safe to run.
+          </p>
+          <button className="btn btn-primary" onClick={runSmokeTest} style={{ padding: '12px 36px', fontSize: '1rem' }}>
+            🧪 Run Smoke Test ({smokeEndpoints.length} checks)
+          </button>
+        </div>
+      )}
+
+      {/* Running state */}
+      {smokeRunning && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ textAlign: 'center', marginBottom: 16 }}>
+            <div className="spinner" style={{ margin: '0 auto' }} />
+            <p style={{ color: 'var(--text-muted)', marginTop: 8, fontSize: '0.85rem' }}>
+              Running {smokeEndpoints.length} checks...
+            </p>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {smokeResults.map((r, i) => (
+              <div key={i} className="card" style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '10px 14px',
+                borderColor: r.status === 'pass' ? 'rgba(34,197,94,0.2)' : r.status === 'fail' ? 'rgba(239,68,68,0.2)' : 'var(--border)',
+                background: r.status === 'running' ? 'rgba(99,102,241,0.03)' : 'var(--bg-card)',
+              }}>
+                <span style={{ fontSize: '1rem', width: 24, textAlign: 'center' }}>
+                  {r.status === 'pass' ? '✅' : r.status === 'fail' ? '❌' : r.status === 'running' ? '⏳' : '⬜'}
+                </span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{r.name}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    {r.status === 'running' ? 'Testing...' : r.detail}
+                  </div>
+                </div>
+                {r.response_time_ms && (
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                    {r.response_time_ms}ms
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Results summary */}
+      {smokeSummary && !smokeRunning && (
+        <>
+          <div className="card" style={{
+            marginBottom: 20,
+            background: smokeSummary.fail === 0 ? 'rgba(34,197,94,0.04)' : 'rgba(239,68,68,0.04)',
+            borderColor: smokeSummary.fail === 0 ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+          }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '2rem', marginBottom: 8 }}>
+                {smokeSummary.fail === 0 ? '🎉' : '⚠️'}
+              </div>
+              <div style={{ fontWeight: 600, fontSize: '1.1rem', marginBottom: 4 }}>
+                {smokeSummary.fail === 0
+                  ? 'All checks passed!'
+                  : `${smokeSummary.fail} check(s) failed`
+                }
+              </div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                {smokeSummary.pass} passed · {smokeSummary.fail} failed · {smokeResults.length} total
+              </div>
+              <button className="btn btn-secondary" style={{ marginTop: 12 }} onClick={runSmokeTest}>
+                🔄 Run Again
+              </button>
+            </div>
+          </div>
+
+          {/* Detailed results */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {smokeResults.map((r, i) => (
+              <div key={i} className="card" style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '10px 14px',
+                borderColor: r.status === 'pass' ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)',
+              }}>
+                <span style={{ fontSize: '1rem', width: 24, textAlign: 'center' }}>
+                  {r.status === 'pass' ? '✅' : '❌'}
+                </span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{r.name}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    <code style={{ fontSize: '0.7rem' }}>{r.endpoint}</code> · {r.detail}
+                  </div>
+                </div>
+                {r.response_time_ms !== undefined && (
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                    {r.response_time_ms}ms
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  const renderStep12Finish = () => (
     <div style={{ textAlign: 'center', maxWidth: 520, margin: '0 auto', paddingTop: 40 }}>
       <div style={{ fontSize: '4rem', marginBottom: 20 }}>🎉</div>
       <h2 style={{ fontSize: '1.75rem', marginBottom: 12 }}>You're All Set!</h2>
       <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: 1.7, marginBottom: 32 }}>
-        JARVIS is ready to go. You can always revisit any configuration later
-        from the Settings page — LLM, voice, documents, and integrations are
-        all individually configurable.
+        JARVIS is ready to go. You chose <strong>{USAGE_MODES.find(m => m.key === usageMode)?.label}</strong> mode.
+        You can always revisit any configuration later from the Settings page.
       </p>
 
       <div className="card-grid" style={{ marginBottom: 32 }}>
@@ -870,12 +1472,16 @@ function SetupWizard() {
   const stepContent = [
     renderStep1Welcome,
     renderStep2SystemCheck,
-    renderStep3LLM,
-    renderStep4Documents,
-    renderStep5Voice,
-    renderStep6Integrations,
-    renderStep7Security,
-    renderStep8Finish,
+    renderStep3UsageMode,
+    renderStep4LLM,
+    renderStep5CommonApps,
+    renderStep6Documents,
+    renderStep7Voice,
+    renderStep8Integrations,
+    renderStep9Security,
+    renderStep10Diagnostics,
+    renderStep11SmokeTest,
+    renderStep12Finish,
   ];
 
   // ── Progress bar ──────────────────────────────────────────────────────
@@ -894,27 +1500,29 @@ function SetupWizard() {
         </div>
       </div>
 
-      {/* Step dots / indicator */}
+      {/* Step dots / indicator — show labels on hover, wrap if needed */}
       <div style={{
-        display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 32,
+        display: 'flex', justifyContent: 'center', gap: 4, marginBottom: 32,
+        flexWrap: 'wrap', maxWidth: 800, margin: '0 auto 32px',
       }}>
         {STEPS.map((s, i) => (
           <button
             key={s.num}
             onClick={() => setStep(i)}
             style={{
-              width: 32, height: 32,
+              width: 28, height: 28,
               borderRadius: '50%',
               border: `2px solid ${i === step ? 'var(--accent)' : i < step ? 'var(--success)' : 'var(--border)'}`,
               background: i < step ? 'var(--success)' : i === step ? 'var(--accent)' : 'transparent',
               color: i < step || i === step ? 'white' : 'var(--text-muted)',
-              fontSize: '0.75rem',
+              fontSize: '0.68rem',
               fontWeight: 600,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               transition: 'all 0.2s',
+              flexShrink: 0,
             }}
             title={`${s.icon} ${s.title}`}
           >
@@ -929,7 +1537,7 @@ function SetupWizard() {
         background: 'var(--border)',
         borderRadius: 2,
         marginBottom: 32,
-        maxWidth: 600,
+        maxWidth: 700,
         margin: '0 auto 32px',
       }}>
         <div style={{

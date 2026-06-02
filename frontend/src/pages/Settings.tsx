@@ -16,7 +16,14 @@ function Settings() {
 
   return (
     <div>
-      <h2 style={{ marginBottom: 20, fontSize: '1.5rem' }}>Settings</h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+        <h2 style={{ fontSize: '1.5rem', margin: 0 }}>Settings</h2>
+        <Link to="/setup">
+          <button className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            🚀 Open Setup Wizard
+          </button>
+        </Link>
+      </div>
 
       <div className="card-grid">
         <div className="card">
@@ -74,6 +81,11 @@ function Settings() {
               Backend: FastAPI · Frontend: React/Vite/TypeScript · DB: SQLite
             </p>
           </div>
+          <Link to="/setup">
+            <button className="btn btn-secondary" style={{ marginTop: 12, width: '100%' }}>
+              🔧 Re-run Setup Wizard
+            </button>
+          </Link>
         </div>
       </div>
     </div>
