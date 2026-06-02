@@ -51,6 +51,29 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("LLM Gateway initialization skipped: {}", exc)
 
+    # Initialize Voice Gateway
+    try:
+        from backend.voice.gateway import voice_gateway
+        voice_gateway.initialize()
+        logger.info("Voice Gateway initialized")
+    except Exception as exc:
+        logger.warning("Voice Gateway initialization skipped: {}", exc)
+
+    # Auto-detect apps on first run
+    try:
+        from backend.apps.config_store import app_config_store
+        from backend.apps.detection import detect_apps
+        existing = app_config_store.get_all()
+        if not existing:
+            logger.info("No apps configured — running auto-detection...")
+            detected = detect_apps()
+            app_config_store.import_from_detection(detected)
+            logger.info("Auto-detected and imported {} apps", len(detected))
+        else:
+            logger.info("App config loaded: {} apps", len(existing))
+    except Exception as exc:
+        logger.warning("App auto-detection skipped: {}", exc)
+
     # Start Automation Engine scheduler
     try:
         from backend.automation.engine import automation_engine
@@ -140,6 +163,7 @@ async def health():
 
 from backend.api.chat import router as chat_router
 from backend.api.command import router as command_router
+from backend.api.conversations import router as conversations_router
 from backend.api.skills import router as skills_router
 from backend.api.settings import router as settings_router
 from backend.api.voice import router as voice_router
@@ -148,11 +172,13 @@ from backend.api.documents import router as documents_router
 from backend.api.setup import router as setup_router
 from backend.api.diagnostics import router as diagnostics_router
 from backend.api.apps_config import router as apps_config_router
+from backend.api.apps_wizard import router as apps_wizard_router
 from backend.api.pending_actions import router as pending_actions_router
 from backend.api.timers import router as timers_router
 
 app.include_router(chat_router, prefix="/api")
 app.include_router(command_router, prefix="/api")
+app.include_router(conversations_router)
 app.include_router(skills_router, prefix="/api")
 app.include_router(settings_router, prefix="/api")
 app.include_router(voice_router, prefix="/api")
@@ -163,6 +189,7 @@ app.include_router(diagnostics_router)
 app.include_router(pending_actions_router)
 app.include_router(apps_config_router, prefix="/api")
 app.include_router(timers_router, prefix="/api")
+app.include_router(apps_wizard_router)
 
 
 # ── Serve Frontend SPA (only if built) ──

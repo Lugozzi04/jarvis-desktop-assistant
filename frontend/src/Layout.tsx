@@ -67,8 +67,11 @@ function Layout() {
           <NavLink to="/logs" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <span className="nav-icon">📋</span> Logs
           </NavLink>
-          <NavLink to="/settings" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+          <NavLink to="/setup" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <span className="nav-icon">🔧</span> Settings
+          </NavLink>
+          <NavLink to="/apps" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <span className="nav-icon">⚡</span> Apps
           </NavLink>
           <NavLink to="/voice" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <span className="nav-icon">🎤</span> Voice

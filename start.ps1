@@ -64,7 +64,20 @@ try {
         Write-Host "   🤖 Ollama connected" -ForegroundColor Green
     }
 } catch {
-    Write-Host "   💡 Start Ollama from Start Menu for LLM chat: ollama pull qwen2.5:7b" -ForegroundColor Yellow
+  Write-Host "   💡 Start Ollama from Start Menu for LLM chat: ollama pull qwen2.5:7b" -ForegroundColor Yellow
+}
+
+# Check Voice / Whisper
+Write-Host "   🎤 Checking voice..."
+$whisperOk = $false
+try {
+  $r = & .\.venv\Scripts\python.exe -c "import faster_whisper; print('ok')" 2>&1
+  if ($r -eq "ok") {
+      $whisperOk = $true
+      Write-Host "   🎤 faster-whisper ready — speech-to-text enabled" -ForegroundColor Green
+  }
+} catch {
+  Write-Host "   💡 Voice STT not available — install: pip install faster-whisper" -ForegroundColor Yellow
 }
 
 Write-Host ""

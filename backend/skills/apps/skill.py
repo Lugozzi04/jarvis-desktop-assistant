@@ -1,18 +1,14 @@
 """AppSkill — launch and manage desktop applications.
 
-Uses configurable aliases so the user can say:
-  "open discord", "open vscode", "open obs"
-
-Apps are configured via the settings UI or directly in the database.
-On Linux, uses subprocess; on Windows, uses os.startfile.
+Uses the AppConfigStore for user-configured apps (via Setup Wizard).
+Falls back to built-in defaults when no config exists.
+On Windows, uses the 'start' command which searches Start Menu + PATH.
 """
 
 from __future__ import annotations
 
-import os
 import platform
 import subprocess
-import sys
 from typing import Any
 
 from backend.core.logger import logger
@@ -23,7 +19,7 @@ from backend.skills.base import BaseSkill
 class AppSkill(BaseSkill):
     """Launch, close, and manage desktop applications."""
 
-    # Built-in fallback apps (if no DB config)
+    # Built-in fallback apps (used only if config store is empty)
     _DEFAULT_APPS: dict[str, dict[str, Any]] = {
         "discord": {"aliases": ["discord", "chat", "dc", "discordia"], "command": "discord"},
         "spotify": {"aliases": ["spotify", "music", "musica"], "command": "spotify"},
@@ -53,44 +49,56 @@ class AppSkill(BaseSkill):
 
         app_name_lower = app_name.lower().strip()
 
-        # Resolve alias → app config
-        app_config = self._resolve_app(app_name_lower)
-        if app_config is None:
-            available = ", ".join(self._DEFAULT_APPS.keys())
-            return self._result(
-                "open",
-                success=False,
-                error=f"Unknown app: '{app_name}'. Available: {available}",
-            )
+        # 1️⃣ Try config store first (user-configured via Setup Wizard)
+        app_config = self._resolve_from_store(app_name_lower)
+        if app_config and app_config.get("enabled", True):
+            return self._launch(app_name, app_config.get("command", app_name_lower))
 
-        command = app_config.get("command", app_name_lower)
-        logger.info("Opening app: {} → {}", app_name, command)
+        # 2️⃣ Fall back to built-in defaults
+        app_config = self._resolve_fallback(app_name_lower)
+        if app_config:
+            return self._launch(app_name, app_config.get("command", app_name_lower))
+
+        # 3️⃣ Not found — suggest detection
+        available = self._get_available_apps()
+        return self._result(
+            "open",
+            success=False,
+            error=(
+                f"Unknown app: '{app_name}'. Run the App Setup Wizard to detect installed apps!\n\n"
+                f"Currently available: {', '.join(available[:10])}"
+                + ("..." if len(available) > 10 else "")
+            ),
+        )
+
+    def _launch(self, name: str, command: str) -> ActionResult:
+        """Launch an app with the appropriate method."""
+        logger.info("Opening app: {} → {}", name, command)
 
         try:
             system = platform.system()
             if command.startswith("start "):
-                # shell built-in — always use subprocess
                 subprocess.Popen(command, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             elif system == "Windows":
-                # Use 'start' command (searches Start Menu + PATH)
+                # Use 'start' command (searches Start Menu + PATH, no popup for nonexistent)
                 subprocess.Popen(
-                    f"start \"\" \"{command}\"",
+                    f'start "" "{command}"',
                     shell=True,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                 )
             elif system == "Darwin":
                 subprocess.Popen(["open", "-a", command], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            else:  # Linux
+            else:
                 subprocess.Popen(
                     command.split() if " " in command else [command],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     start_new_session=True,
                 )
-            return self._result("open", success=True, result=f"Opened {app_name}")
+            return self._result("open", success=True, result=f"Opened {name}")
         except FileNotFoundError:
-            return self._result("open", success=False, error=f"App '{app_name}' not found (command: {command})")
+            return self._result("open", success=False, error=f"App '{name}' not found (command: {command}). Try the App Setup Wizard to configure the correct path.")
         except Exception as exc:
             return self._result("open", success=False, error=str(exc))
 
@@ -99,13 +107,18 @@ class AppSkill(BaseSkill):
             return self._result("close", success=False, error="No app name provided")
 
         app_name_lower = app_name.lower().strip()
-        app_config = self._resolve_app(app_name_lower)
+        app_config = self._resolve_from_store(app_name_lower) or self._resolve_fallback(app_name_lower)
         command = app_config.get("command", app_name_lower) if app_config else app_name_lower
+
+        # Extract exe name from path
+        exe_name = command.split("\\")[-1] if "\\" in command else command
+        if not exe_name.lower().endswith(".exe"):
+            exe_name += ".exe"
 
         try:
             system = platform.system()
             if system == "Windows":
-                subprocess.run(["taskkill", "/IM", f"{command}.exe", "/F"], capture_output=True)
+                subprocess.run(["taskkill", "/IM", exe_name, "/F"], capture_output=True)
             else:
                 subprocess.run(["pkill", "-f", command], capture_output=True)
             return self._result("close", success=True, result=f"Closed {app_name}")
@@ -114,19 +127,48 @@ class AppSkill(BaseSkill):
 
     def _list_apps(self) -> ActionResult:
         apps = []
-        for name, config in self._DEFAULT_APPS.items():
-            apps.append(f"• {name} ({', '.join(config['aliases'][:3])})")
+
+        # From config store
+        try:
+            from backend.apps.config_store import app_config_store
+            enabled = app_config_store.get_enabled()
+            for name, config in enabled.items():
+                aliases = config.get("aliases", [name])[:3]
+                apps.append(f"• {config.get('name', name)} ({', '.join(aliases)})")
+        except Exception:
+            pass
+
+        # If empty, show defaults
+        if not apps:
+            for name, config in self._DEFAULT_APPS.items():
+                apps.append(f"• {name} ({', '.join(config['aliases'][:3])})")
+
         return self._result("list", success=True, result="Configured apps:\n" + "\n".join(apps))
 
-    def _resolve_app(self, name: str) -> dict[str, Any] | None:
-        """Resolve an app name or alias to its config."""
-        # Direct match
+    def _get_available_apps(self) -> list[str]:
+        """Get list of currently available app names for error messages."""
+        try:
+            from backend.apps.config_store import app_config_store
+            enabled = app_config_store.get_enabled()
+            if enabled:
+                return list(enabled.keys())
+        except Exception:
+            pass
+        return list(self._DEFAULT_APPS.keys())
+
+    def _resolve_from_store(self, name: str) -> dict[str, Any] | None:
+        """Resolve from the persistent config store."""
+        try:
+            from backend.apps.config_store import app_config_store
+            return app_config_store.resolve(name)
+        except Exception:
+            return None
+
+    def _resolve_fallback(self, name: str) -> dict[str, Any] | None:
+        """Resolve from built-in fallback apps."""
         if name in self._DEFAULT_APPS:
             return self._DEFAULT_APPS[name]
-
-        # Alias match
         for app_name, config in self._DEFAULT_APPS.items():
             if name in config.get("aliases", []):
                 return config
-
         return None

@@ -13,6 +13,7 @@ import Habits from './pages/Habits';
 import Documents from './pages/Documents';
 import PendingActions from './pages/PendingActions';
 import SetupWizard from './pages/SetupWizard';
+import AppWizard from './pages/AppWizard';
 
 function App() {
   return (
@@ -32,6 +33,7 @@ function App() {
           <Route path="/documents" element={<Documents />} />
           <Route path="/pending-actions" element={<PendingActions />} />
           <Route path="/setup" element={<SetupWizard />} />
+          <Route path="/apps" element={<AppWizard />} />
         </Route>
       </Routes>
     </BrowserRouter>

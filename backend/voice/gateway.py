@@ -22,8 +22,8 @@ class VoiceGateway:
         if self._initialized:
             return
 
-        stt_provider_name = getattr(settings, "stt_provider", "mock")
-        tts_provider_name = getattr(settings, "tts_provider", "mock")
+        stt_provider_name = getattr(settings.voice, "stt_provider", "mock") if settings.voice else "mock"
+        tts_provider_name = getattr(settings.voice, "tts_provider", "mock") if settings.voice else "mock"
 
         # STT
         if stt_provider_name == "faster_whisper":
@@ -47,6 +47,34 @@ class VoiceGateway:
             self._stt_provider.name, self._tts_provider.name,
         )
 
+    @property
+    def stt_available(self) -> bool:
+        """Is STT available?"""
+        if not self._initialized:
+            return False
+        return self._stt_provider is not None
+
+    @property
+    def tts_available(self) -> bool:
+        """Is TTS available?"""
+        if not self._initialized:
+            return False
+        return self._tts_provider is not None
+
+    @property
+    def stt_provider(self) -> str:
+        """STT provider name."""
+        if not self._initialized:
+            self.initialize()
+        return self._stt_provider.name if self._stt_provider else "none"
+
+    @property
+    def tts_provider(self) -> str:
+        """TTS provider name."""
+        if not self._initialized:
+            self.initialize()
+        return self._tts_provider.name if self._tts_provider else "none"
+
     async def get_status(self) -> dict[str, Any]:
         """Get overall voice system status."""
         if not self._initialized:
@@ -56,13 +84,13 @@ class VoiceGateway:
         tts_status = await self._tts_provider.get_status() if self._tts_provider else {"available": False}
 
         return {
-            "voice_enabled": getattr(settings, "voice_enabled", False),
+            "voice_enabled": getattr(settings, "voice_enabled", True),
             "stt_provider": self._stt_provider.name if self._stt_provider else "none",
             "stt_available": stt_status.get("available", False),
             "tts_provider": self._tts_provider.name if self._tts_provider else "none",
             "tts_available": tts_status.get("available", False),
             "push_to_talk_enabled": True,
-            "wake_word_enabled": False,
+            "wake_word_enabled": getattr(settings.voice, "wake_word_enabled", False) if settings.voice else False,
             "stt_details": stt_status,
             "tts_details": tts_status,
             "errors": [],

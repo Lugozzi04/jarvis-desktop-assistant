@@ -167,10 +167,12 @@ async def _documents_status():
 async def _voice_status():
     try:
         from backend.voice.gateway import voice_gateway
+        if not voice_gateway._initialized:
+            voice_gateway.initialize()
         return {
-            "available": voice_gateway.stt_available and voice_gateway.tts_available,
-            "stt": voice_gateway.stt_provider or "none",
-            "tts": voice_gateway.tts_provider or "none",
+            "available": voice_gateway.stt_available or voice_gateway.tts_available,
+            "stt": voice_gateway.stt_provider,
+            "tts": voice_gateway.tts_provider,
         }
     except Exception:
         return {"available": False, "stt": "none", "tts": "none"}
@@ -209,7 +211,7 @@ async def _pending_actions_status():
 
 
 def _desktop_status():
-    return {"electron": True, "portable_mode": True}
+    return {"electron": True, "portable_mode": True, "webview": "pywebview"}
 
 
 def _get_public_config():
@@ -235,6 +237,8 @@ def _llm_configured():
 def _voice_configured():
     try:
         from backend.voice.gateway import voice_gateway
+        if not voice_gateway._initialized:
+            voice_gateway.initialize()
         return voice_gateway.stt_available or voice_gateway.tts_available
     except Exception:
         return False
