@@ -1,5 +1,9 @@
-// API client for Jarvis backend
-const API_BASE = 'http://localhost:8400';
+// API client for Jarvis backend.
+// Uses relative URLs when loaded from the backend (desktop app / SPA),
+// falls back to localhost:8400 when running standalone dev server.
+const API_BASE = typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+  ? window.location.origin
+  : 'http://localhost:8400';
 
 async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {

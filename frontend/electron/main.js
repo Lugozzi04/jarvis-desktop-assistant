@@ -229,9 +229,10 @@ function createMainWindow() {
     mainWindow.loadURL(DEV_URL);
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
-    const distPath = path.join(__dirname, '..', 'dist', 'index.html');
-    console.log(`[Jarvis] Portable mode — loading ${distPath}`);
-    mainWindow.loadFile(distPath);
+    // Load from backend (same origin as API — no CORS issues)
+    const backendUrl = `http://${BACKEND_HOST}:${BACKEND_PORT}`;
+    console.log(`[Jarvis] Loading from backend — ${backendUrl}`);
+    mainWindow.loadURL(backendUrl);
   }
 
   mainWindow.once('ready-to-show', () => {

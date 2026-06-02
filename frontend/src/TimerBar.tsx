@@ -15,7 +15,8 @@ export function TimerBar() {
   useEffect(() => {
     const poll = async () => {
       try {
-        const res = await fetch('http://localhost:8400/api/timers');
+        const base = window.location.hostname ? window.location.origin : 'http://localhost:8400';
+        const res = await fetch(`${base}/api/timers`);
         const data = await res.json();
         if (data.timers) {
           setTimers(data.timers);

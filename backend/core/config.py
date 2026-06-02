@@ -79,7 +79,7 @@ class Settings(BaseSettings):
     # UI
     ui_host: str = "127.0.0.1"
     ui_port: int = 8400
-    ui_cors_origins: str = "http://localhost:5173,http://localhost:8400"
+    ui_cors_origins: str = "http://localhost:5173,http://localhost:8400,http://127.0.0.1:8400,app://jarvis"
 
     # Voice
     voice: VoiceConfig = VoiceConfig()

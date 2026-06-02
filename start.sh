@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# Jarvis — One-click launcher (Linux/macOS)
+# Jarvis Desktop Assistant — One-click Desktop Launcher (Linux/macOS)
 # Usage: bash start.sh
-# Does everything: check deps → install → build → start backend → open browser
+# Opens a native Electron window — NOT a browser tab.
 
 set -e
 cd "$(dirname "$0")"
 
 echo ""
 echo -e "\033[36m╔══════════════════════════════════════╗\033[0m"
-echo -e "\033[36m║        JARVIS Desktop Assistant      ║\033[0m"
+echo -e "\033[36m║   JARVIS Desktop Assistant v0.3.0   ║\033[0m"
 echo -e "\033[36m╚══════════════════════════════════════╝\033[0m"
 echo ""
 
 # ── Step 1: Check Python ──
-echo -e "\033[33m[1/5] Checking Python...\033[0m"
+echo -e "\033[33m[1/4] Checking Python...\033[0m"
 if command -v python3 &>/dev/null; then
     PY=python3
 elif command -v python &>/dev/null; then
@@ -25,7 +25,7 @@ fi
 echo -e "   \033[32m✅ $PY\033[0m"
 
 # ── Step 2: Setup venv ──
-echo -e "\033[33m[2/5] Setting up Python environment...\033[0m"
+echo -e "\033[33m[2/4] Setting up Python environment...\033[0m"
 if [ ! -d ".venv" ]; then
     $PY -m venv .venv
     .venv/bin/pip install -q -r requirements.txt
@@ -34,43 +34,39 @@ else
     echo -e "   \033[32m✅ .venv found\033[0m"
 fi
 
-# ── Step 3: Node.js & frontend ──
-echo -e "\033[33m[3/5] Checking Node.js...\033[0m"
+# ── Step 3: Node.js + frontend + Electron ──
+echo -e "\033[33m[3/4] Preparing frontend + Electron...\033[0m"
 if ! command -v node &>/dev/null; then
-    echo -e "   \033[33m⚠️  Node.js not found — API-only mode\033[0m"
-else
-    if [ ! -d "frontend/node_modules" ]; then
-        echo "   Installing frontend dependencies..."
-        cd frontend && npm install && cd ..
-    fi
-    if [ ! -d "frontend/dist" ]; then
-        echo "   Building frontend..."
-        cd frontend && npm run build && cd ..
-    fi
-    echo -e "   \033[32m✅ Frontend ready\033[0m"
+    echo -e "   \033[31m❌ Node.js not found.\033[0m"
+    echo "   Install: https://nodejs.org  or  curl -fsSL https://deb.nodesource.com/setup_20.x | bash -"
+    exit 1
 fi
 
-# ── Step 4: Start backend ──
-echo -e "\033[33m[4/5] Starting backend on http://localhost:8400 ...\033[0m"
-echo "   Press Ctrl+C to stop"
-echo ""
+cd frontend
 
-.venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8400 &
-BACKEND_PID=$!
-sleep 3
-
-# ── Step 5: Open browser ──
-echo -e "\033[33m[5/5] Opening Jarvis...\033[0m"
-if command -v xdg-open &>/dev/null; then
-    xdg-open http://localhost:8400
-elif command -v open &>/dev/null; then
-    open http://localhost:8400
+# Install deps (includes Electron)
+if [ ! -d "node_modules" ]; then
+    echo "   Installing dependencies..."
+    npm install
 fi
 
-echo ""
-echo -e "\033[32m✅ Jarvis is running!\033[0m"
-echo -e "   Backend: \033[36mhttp://localhost:8400\033[0m"
-echo "   Press Ctrl+C to stop"
+# Build frontend
+if [ ! -d "dist" ] || [ "$(find dist -maxdepth 0 -mmin +60 2>/dev/null)" ]; then
+    echo "   Building frontend..."
+    npm run build
+fi
+
+cd ..
+
+echo -e "   \033[32m✅ Frontend + Electron ready\033[0m"
+
+# ── Step 4: Launch Electron Desktop App ──
+echo -e "\033[33m[4/4] Launching Jarvis Desktop App...\033[0m"
+echo -e "   ℹ️  The backend starts automatically in the background."
+echo -e "   ℹ️  A native window will open — NOT a browser tab."
 echo ""
 
-wait $BACKEND_PID
+cd frontend && npx electron . ; cd ..
+
+echo ""
+echo -e "\033[32m✅ Jarvis closed. See you next time! ⚡\033[0m"
