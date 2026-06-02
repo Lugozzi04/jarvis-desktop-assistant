@@ -153,3 +153,25 @@
 - [x] Windows PowerShell startup + Task Scheduler template
 - [x] macOS LaunchAgent plist template
 - [x] docs/startup.md
+
+## M15 — Portable Desktop App ✅
+- [x] Electron BackendManager (auto-start/check/stop backend)
+- [x] Loading screen UI in Electron
+- [x] Error screen with retry/diagnostics/copy
+- [x] Portable mode (Electron loads dist, backend auto-managed)
+- [x] Dev mode preserved (Vite + Electron)
+- [x] Environment check script (check_environment.py)
+- [x] Setup local scripts (Linux/macOS/Windows)
+- [x] Start jarvis scripts (no browser needed)
+- [x] Setup Wizard (8-step first-run configuration)
+- [x] Health full endpoint (GET /api/health/full)
+- [x] Diagnostics endpoint (GET /api/diagnostics, export)
+- [x] Pending Actions Queue (security gate)
+- [x] Pending Actions API + frontend page
+- [x] Dashboard rewritten with real-time health cards
+- [x] Setup Wizard frontend page
+- [x] Topbar pending actions badge
+- [x] Config public endpoint
+- [x] Security docs + architecture docs
+- [x] Troubleshooting guide
+- [x] Portable desktop docs
