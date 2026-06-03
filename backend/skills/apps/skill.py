@@ -145,9 +145,9 @@ class AppSkill(BaseSkill):
                         os.startfile(str(path))
                         return self._result("open", success=True, result=f"Opened {name} folder")
                     else:
-                        # Path doesn't exist — try 'start' as fallback
+                        # Path doesn't exist — try 'start' as fallback (without quotes)
                         subprocess.Popen(
-                            f'start "" "{command}"',
+                            f'start "" {command}',
                             shell=True,
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL,
@@ -176,9 +176,9 @@ class AppSkill(BaseSkill):
                         )
                         return self._result("open", success=True, result=f"Opened {name}")
 
-                # Last resort: 'start' command
+                # Last resort: 'start' command (without quotes — start resolves via App Paths registry)
                 subprocess.Popen(
-                    f'start "" "{command}"',
+                    f'start "" {command}',
                     shell=True,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
@@ -205,37 +205,56 @@ class AppSkill(BaseSkill):
             return self._result("open", success=False, error=str(exc))
 
     def _find_exe_in_folder(self, folder: Path, app_name: str) -> Path | None:
-        """Find the main executable in a folder. Returns Path or None."""
+        """Find the main executable in a folder. Searches folder + 1 level deep. Returns Path or None."""
         try:
-            import re
             name_clean = app_name.lower().replace(" ", "").replace("-", "")
 
-            # Priority 1: exact name match (e.g., Discord/Discord.exe)
-            candidates = sorted(folder.glob("*.exe"))
+            # Collect all .exe files: folder root + 1 level deep
+            all_exes = list(folder.glob("*.exe"))
+            for sub in folder.iterdir():
+                if sub.is_dir():
+                    try:
+                        all_exes.extend(sub.glob("*.exe"))
+                    except PermissionError:
+                        pass
+
+            if not all_exes:
+                return None
+
+            candidates = sorted(all_exes)
+
+            # Priority 1: exact name match (e.g., Spotify/Spotify.exe)
             for exe in candidates:
                 stem = exe.stem.lower().replace(" ", "").replace("-", "")
                 if stem == name_clean:
+                    logger.info("Found exact exe match: {}", exe)
                     return exe
 
-            # Priority 2: starts with name (e.g., Discord/DiscordSetup.exe)
+            # Priority 2: starts with name (e.g., Spotify/SpotifyLauncher.exe)
             for exe in candidates:
                 stem = exe.stem.lower().replace(" ", "").replace("-", "")
                 if stem.startswith(name_clean[:4]):
+                    logger.info("Found prefix exe match: {}", exe)
                     return exe
 
-            # Priority 3: name contains (e.g., Update.exe is not it)
+            # Priority 3: name is in stem, skip uninstallers/updaters
             for exe in candidates:
                 stem = exe.stem.lower().replace(" ", "").replace("-", "")
-                if name_clean[:3] in stem and "uninstall" not in stem and "update" not in stem:
+                if (name_clean[:3] in stem and
+                    "uninstall" not in stem and
+                    "update" not in stem and
+                    "setup" not in stem and
+                    "install" not in stem):
+                    logger.info("Found fuzzy exe match: {}", exe)
                     return exe
 
-            # Priority 4: largest .exe (usually the main one, not uninstaller)
-            if candidates:
-                largest = max(candidates, key=lambda p: p.stat().st_size)
-                return largest
+            # Priority 4: largest .exe (usually the main app)
+            largest = max(candidates, key=lambda p: p.stat().st_size)
+            logger.info("Using largest exe: {} ({} bytes)", largest, largest.stat().st_size)
+            return largest
 
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("_find_exe_in_folder error: {}", exc)
 
         return None
 

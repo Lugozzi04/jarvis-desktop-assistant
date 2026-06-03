@@ -34,7 +34,11 @@ class ChatSkill(BaseSkill):
             return self._result("answer_question", success=False, error="No question provided")
 
         response = _try_llm([
-            {"role": "system", "content": "You are JARVIS, a helpful desktop assistant. Be concise and practical. Respond in the same language the user used."},
+            {"role": "system", "content": (
+                "Sei JARVIS, un assistente italiano. "
+                "Rispondi ESCLUSIVAMENTE in italiano, mai in altre lingue. "
+                "Sii conciso, preciso e utile."
+            )},
             {"role": "user", "content": question},
         ])
         return self._result("answer_question", success=True, result=response)
@@ -43,9 +47,9 @@ class ChatSkill(BaseSkill):
         if not question:
             return self._result("explain_concept", success=False, error="No question provided")
 
-        prompt = f"Explain the following concept in simple, clear terms. Be educational but concise.\n\nConcept: {question}"
+        prompt = f"Spiega il seguente concetto in italiano, in modo semplice e chiaro. Sii educativo ma conciso.\n\nConcetto: {question}"
         response = _try_llm([
-            {"role": "system", "content": "You are a patient teacher. Explain concepts clearly in 2-3 paragraphs."},
+            {"role": "system", "content": "Sei un insegnante paziente. Spiega i concetti in italiano, in 2-3 paragrafi chiari."},
             {"role": "user", "content": prompt},
         ])
         return self._result("explain_concept", success=True, result=response)
@@ -55,7 +59,7 @@ class ChatSkill(BaseSkill):
             return self._result("summarize_text", success=False, error="No text provided")
 
         response = _try_llm([
-            {"role": "system", "content": "Summarize the following text in 3-5 bullet points. Be concise."},
+            {"role": "system", "content": "Riassumi il seguente testo in italiano, in 3-5 punti elenco. Sii conciso."},
             {"role": "user", "content": text},
         ])
         return self._result("summarize_text", success=True, result=response)
@@ -66,12 +70,14 @@ def _try_llm(messages: list[dict[str, str]]) -> str:
     import json
     try:
         import requests
+        model = settings.llm.chat_model if hasattr(settings.llm, 'chat_model') else "mistral:7b"
         r = requests.post(
             "http://localhost:11434/api/chat",
             json={
-                "model": "qwen2.5:7b",
+                "model": model,
                 "messages": messages,
                 "stream": False,
+                "options": {"temperature": 0.5},
             },
             timeout=30,
         )

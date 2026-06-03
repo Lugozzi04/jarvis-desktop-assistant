@@ -71,21 +71,23 @@ class WebSearchSkill(BaseSkill):
                 ctx_parts.append(f"{i}. {r['title']}\n   {r.get('snippet', '')[:300]}")
             context = "\n\n".join(ctx_parts)
             
+            # Try to detect query language for response language
             prompt = (
                 f"Search results for '{query}':\n\n{context}\n\n"
                 f"Summarize the key findings in 3-5 concise bullet points. "
-                f"Respond in the same language as the query. Be factual and cite sources."
+                f"Respond in ITALIAN. Sii fattuale e cita le fonti."
             )
             
             r = requests.post(
                 "http://localhost:11434/api/chat",
                 json={
-                    "model": "qwen2.5:7b",
+                    "model": "mistral:7b",
                     "messages": [
-                        {"role": "system", "content": "You are a helpful search assistant. Summarize web results concisely."},
+                        {"role": "system", "content": "Sei un assistente di ricerca. Riassumi i risultati web in italiano, in modo conciso e fattuale."},
                         {"role": "user", "content": prompt},
                     ],
                     "stream": False,
+                    "options": {"temperature": 0.5},
                 },
                 timeout=30,
             )

@@ -32,7 +32,7 @@ def search_web(query: str, max_results: int = 5) -> list[dict[str, str]]:
         from ddgs import DDGS
         with DDGS() as ddgs:
             results = []
-            for r in ddgs.text(query, max_results=max_results):
+            for r in ddgs.text(query, max_results=max_results, region="it-it"):
                 results.append({
                     "title": r.get("title", ""),
                     "url": r.get("href", ""),

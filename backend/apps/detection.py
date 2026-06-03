@@ -506,12 +506,17 @@ def detect_apps() -> list[dict[str, Any]]:
         len(start_menu), len(path_found), len(prog_files), len(appdata), len(registry),
     )
 
-    # Merge: priority = prog_files > appdata > registry > path > start_menu
+    # Merge: prefer .exe files over folder paths
     all_found: dict[str, str] = {}
     for source in [prog_files, appdata, registry, path_found]:
         for name, path in source.items():
             if name not in all_found:
                 all_found[name] = path
+            else:
+                # If existing path is a folder but new path is an .exe, prefer the .exe
+                existing = all_found[name]
+                if not existing.lower().endswith(".exe") and path.lower().endswith(".exe"):
+                    all_found[name] = path
 
     # Also match Start Menu entries to known apps
     for sm_name, sm_path in start_menu.items():
