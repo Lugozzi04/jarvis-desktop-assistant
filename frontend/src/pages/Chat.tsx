@@ -33,39 +33,24 @@ function Chat() {
   const inputRef = useRef<HTMLInputElement>(null);
   const msgId = useRef(1);
 
-  // Conversation state
+  // Conversation state — null = temporary (unsaved)
   const [convId, setConvId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [showHistory, setShowHistory] = useState(true);
 
-  // Voice recording via Whisper backend
+  // Voice recording
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
-  // Load conversations on mount
-  useEffect(() => {
-    loadConversations();
-  }, []);
-
-  // Handle ?cmd= from Dashboard quick actions
+  useEffect(() => { loadConversations(); }, []);
   useEffect(() => {
     const cmd = searchParams.get('cmd');
-    if (cmd) {
-      sendMessage(cmd);
-    }
+    if (cmd) sendMessage(cmd);
   }, []);
-
-  // Scroll to bottom
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  // Focus input when conversation changes
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, [convId]);
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  useEffect(() => { inputRef.current?.focus(); }, [convId]);
 
   // ── Conversations ──
 
@@ -82,7 +67,7 @@ function Chat() {
       { id: 0, role: 'assistant', content: 'Hello! I\'m JARVIS. How can I help you?\n\nTry slash commands:\n• /open <app>\n• /search <query>\n• /timer <duration> <message>\n• /system stats\n• /ask <question>', timestamp: '' },
     ]);
     msgId.current = 1;
-    setConvId(null);
+    setConvId(null); // Temporary — NOT saved
     inputRef.current?.focus();
   };
 
@@ -100,7 +85,7 @@ function Chat() {
         msgId.current = msgs.length;
         setMessages(msgs);
       }
-      setConvId(id);
+      setConvId(id); // Saved conversation
     } catch {}
   };
 
@@ -109,13 +94,37 @@ function Chat() {
     try {
       await fetch(`${API}/api/conversations/${id}`, { method: 'DELETE' });
       setConversations(prev => prev.filter(c => c.id !== id));
-      if (convId === id) {
-        startNewChat();
-      }
+      if (convId === id) startNewChat();
     } catch {}
   };
 
-  // ── Voice Recording (Whisper backend) ──
+  // ── Save current temp chat ──
+  const saveConversation = async () => {
+    if (convId) return; // Already saved
+    try {
+      const res = await fetch(`${API}/api/conversations`, { method: 'POST' });
+      const data = await res.json();
+      const cid = data.id;
+      setConvId(cid);
+      loadConversations();
+      // Now save existing messages to backend
+      for (const msg of messages) {
+        if (msg.id > 0 && msg.role !== 'system') {
+          try {
+            await fetch(`${API}/api/chat`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ message: msg.content, session_id: cid, source: 'text' }),
+            });
+          } catch {}
+        }
+      }
+      // Don't re-send — just mark conversation as saved
+      loadConversations();
+    } catch {}
+  };
+
+  // ── Voice ──
 
   const startRecording = async () => {
     try {
@@ -123,26 +132,20 @@ function Chat() {
       const rec = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
       mediaRecorderRef.current = rec;
       audioChunksRef.current = [];
-
-      rec.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
-      };
-
+      rec.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       rec.onstop = async () => {
         stream.getTracks().forEach(t => t.stop());
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        await transcribeAudio(blob);
+        await transcribeAudio(new Blob(audioChunksRef.current, { type: 'audio/webm' }));
       };
-
       rec.start();
       setRecording(true);
-    } catch (err) {
-      alert('Microphone access denied. Please allow microphone access in your browser settings.');
+    } catch {
+      alert('Microphone access denied.');
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+    if (mediaRecorderRef.current?.state === 'recording') {
       mediaRecorderRef.current.stop();
       setRecording(false);
     }
@@ -153,49 +156,31 @@ function Chat() {
     try {
       const formData = new FormData();
       formData.append('file', blob, 'recording.webm');
-      const res = await fetch(`${API}/api/voice/command`, {
-        method: 'POST',
-        body: formData,
-      });
+      const res = await fetch(`${API}/api/voice/command`, { method: 'POST', body: formData });
       const data = await res.json();
       if (data.transcription?.text) {
-        const text = data.transcription.text.trim();
-        setInput(prev => (prev + ' ' + text).trim());
-        // Focus input
+        setInput(prev => (prev + ' ' + data.transcription.text).trim());
         inputRef.current?.focus();
-      } else if (data.error) {
-        // Fallback: show error
-        setInput(prev => prev + ' [Voice transcription failed]');
       }
-    } catch (err) {
-      setInput(prev => prev + ' [Voice error]');
-    } finally {
-      setTranscribing(false);
-    }
+    } catch {}
+    setTranscribing(false);
   };
 
   // ── Messaging ──
 
   const addMessage = (role: Message['role'], content: string, details?: string) => {
     setMessages(prev => [...prev, {
-      id: msgId.current++,
-      role,
-      content,
-      details,
+      id: msgId.current++, role, content, details,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     }]);
   };
 
   const formatResult = (res: ChatResponse): string => {
-    if (res.needs_confirmation) {
-      return `⚠️ **Confirmation required**\n${res.confirmation_message}`;
-    }
+    if (res.needs_confirmation) return `⚠️ **Confirmation required**\n${res.confirmation_message}`;
     if (res.result) {
-      if (res.result.success) {
-        return `✅ ${res.result.result || 'Done'}\n_${res.result.skill}.${res.result.action} — ${res.duration_ms?.toFixed(0)}ms_`;
-      } else {
-        return `❌ ${res.result.error || 'Action failed'}`;
-      }
+      return res.result.success
+        ? `✅ ${res.result.result || 'Done'}\n_${res.result.skill}.${res.result.action} — ${res.duration_ms?.toFixed(0)}ms_`
+        : `❌ ${res.result.error || 'Action failed'}`;
     }
     return res.response;
   };
@@ -208,148 +193,56 @@ function Chat() {
     addMessage('user', msg);
     setLoading(true);
 
-    // Auto-create conversation on first message
-    let cid = convId;
-    if (!cid) {
-      try {
-        const res = await fetch(`${API}/api/conversations`, { method: 'POST' });
-        const data = await res.json();
-        cid = data.id;
-        setConvId(cid);
-        // Immediately refresh sidebar to show new conversation
-        loadConversations();
-      } catch {}
-    }
+    const cid = convId;
 
     try {
       const isSlash = msg.startsWith('/');
-      const res = isSlash ? await api.command(msg, cid || undefined) : await api.chat(msg, cid || undefined);
+      const res = isSlash
+        ? await api.command(msg, cid || undefined)
+        : await api.chat(msg, cid || undefined);
       addMessage('assistant', formatResult(res));
       if (res.intent) {
-        const intentInfo = `Intent: ${res.intent.kind} → ${res.intent.skill || '?'}.${res.intent.action || '?'} (${(res.intent.confidence * 100).toFixed(0)}%)`;
-        addMessage('system', intentInfo);
+        addMessage('system', `Intent: ${res.intent.kind} → ${res.intent.skill || '?'}.${res.intent.action || '?'} (${(res.intent.confidence * 100).toFixed(0)}%)`);
       }
-      // Refresh conversation list to update counts/titles
-      loadConversations();
+      if (cid) loadConversations();
     } catch (err) {
       addMessage('assistant', `❌ Error: ${err instanceof Error ? err.message : 'Connection failed'}`);
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
+
+  const isTemp = !convId;
 
   // ── Render ──
 
   return (
     <div style={{ display: 'flex', height: 'calc(100vh - var(--topbar-height) - 60px)', flexDirection: 'row-reverse' }}>
-      {/* History Sidebar — RIGHT side */}
+      {/* History Sidebar — RIGHT */}
       {showHistory && (
-        <div style={{
-          width: 230,
-          minWidth: 230,
-          borderLeft: '1px solid var(--border)',
-          display: 'flex',
-          flexDirection: 'column',
-          background: 'var(--bg-secondary)',
-        }}>
-          <div style={{
-            padding: '10px 12px',
-            borderBottom: '1px solid var(--border)',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}>
+        <div style={{ width: 230, minWidth: 230, borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', background: 'var(--bg-secondary)' }}>
+          <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>💬 History</span>
-            <button
-              className="btn btn-sm btn-primary"
-              style={{ padding: '3px 8px', fontSize: '0.7rem', borderRadius: 6 }}
-              onClick={startNewChat}
-            >
-              ＋ New
-            </button>
+            <button className="btn btn-sm btn-primary" style={{ padding: '3px 8px', fontSize: '0.7rem', borderRadius: 6 }} onClick={startNewChat}>＋ New</button>
           </div>
           <div style={{ flex: 1, overflowY: 'auto', padding: '2px 0' }}>
             {conversations.length === 0 && (
-              <div style={{
-                padding: '20px 12px',
-                fontSize: '0.75rem',
-                color: 'var(--text-muted)',
-                textAlign: 'center',
-                lineHeight: 1.6,
-              }}>
-                No conversations yet.<br />Start chatting to<br />create one!
+              <div style={{ padding: '20px 12px', fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.6 }}>
+                No saved chats yet.
               </div>
             )}
             {conversations.map(conv => (
-              <div
-                key={conv.id}
-                onClick={() => selectConversation(conv.id)}
-                style={{
-                  padding: '8px 10px',
-                  cursor: 'pointer',
-                  background: convId === conv.id ? 'var(--bg-primary)' : 'transparent',
-                  borderLeft: convId === conv.id ? '3px solid var(--accent)' : '3px solid transparent',
-                  borderRight: convId === conv.id ? '3px solid var(--accent)' : '3px solid transparent',
-                  transition: 'background 0.12s',
-                  margin: '1px 0',
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.background =
-                    convId === conv.id ? 'var(--bg-primary)' : 'var(--bg-hover, rgba(255,255,255,0.03))';
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.background =
-                    convId === conv.id ? 'var(--bg-primary)' : 'transparent';
-                }}
-              >
+              <div key={conv.id} onClick={() => selectConversation(conv.id)} style={{ padding: '8px 10px', cursor: 'pointer', background: convId === conv.id ? 'var(--bg-primary)' : 'transparent', borderLeft: convId === conv.id ? '3px solid var(--accent)' : '3px solid transparent', borderRight: convId === conv.id ? '3px solid var(--accent)' : '3px solid transparent', margin: '1px 0', transition: 'background 0.12s' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{
-                      fontWeight: convId === conv.id ? 600 : 400,
-                      fontSize: '0.8rem',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      color: convId === conv.id ? 'var(--text-primary)' : 'var(--text-secondary)',
-                    }}>
-                      {conv.title}
-                    </div>
-                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: 1 }}>
-                      {conv.message_count} msg
-                    </div>
+                    <div style={{ fontWeight: convId === conv.id ? 600 : 400, fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: convId === conv.id ? 'var(--text-primary)' : 'var(--text-secondary)' }}>{conv.title}</div>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: 1 }}>{conv.message_count} msg</div>
                   </div>
-                  <button
-                    style={{
-                      padding: '2px 5px',
-                      fontSize: '0.65rem',
-                      background: 'transparent',
-                      color: 'var(--text-muted)',
-                      border: 'none',
-                      cursor: 'pointer',
-                      borderRadius: 4,
-                      flexShrink: 0,
-                      opacity: 0.6,
-                    }}
-                    onClick={(e) => deleteConversation(conv.id, e)}
-                    title="Delete"
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLElement).style.opacity = '1';
-                      (e.currentTarget as HTMLElement).style.color = 'var(--danger)';
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLElement).style.opacity = '0.6';
-                      (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
-                    }}
-                  >
-                    ×
-                  </button>
+                  <button style={{ padding: '2px 5px', fontSize: '0.65rem', background: 'transparent', color: 'var(--text-muted)', border: 'none', cursor: 'pointer', borderRadius: 4, flexShrink: 0, opacity: 0.6 }}
+                    onClick={(e) => deleteConversation(conv.id, e)} title="Delete">×</button>
                 </div>
               </div>
             ))}
@@ -358,184 +251,87 @@ function Chat() {
       )}
 
       {/* Main Chat Area */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        minWidth: 0,
-        border: convId ? '2px solid var(--accent, #6366f1)' : '2px dashed #f59e0b',
-        borderRadius: 4,
-        transition: 'border 0.3s',
-      }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, position: 'relative' }}>
+
+        {/* ── Save Box (only on temporary chats) ── */}
+        {isTemp && (
+          <div style={{
+            position: 'absolute',
+            top: 10,
+            right: 14,
+            zIndex: 50,
+            background: 'var(--bg-secondary, #1e1e2e)',
+            border: '1px solid var(--accent, #6366f1)',
+            borderRadius: 10,
+            padding: '8px 14px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+            cursor: 'pointer',
+            transition: 'transform 0.15s, box-shadow 0.15s',
+          }}
+            onClick={saveConversation}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.transform = 'scale(1.04)';
+              (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 20px rgba(99,102,241,0.3)';
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.transform = 'scale(1)';
+              (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 12px rgba(0,0,0,0.15)';
+            }}
+            title="Save this conversation"
+          >
+            <span style={{ fontSize: '1rem' }}>💾</span>
+            <span style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--accent, #6366f1)' }}>Save Chat</span>
+          </div>
+        )}
+
         {/* Messages */}
-        <div style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: '12px 16px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 8,
-        }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 40px', display: 'flex', flexDirection: 'column', gap: 8 }}>
           {messages.map(msg => (
-            <div
-              key={msg.id}
-              style={{
-                padding: '10px 14px',
-                borderRadius: 12,
-                maxWidth: '85%',
-                alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                background: msg.role === 'user'
-                  ? 'var(--accent, #6366f1)'
-                  : msg.role === 'system'
-                    ? 'var(--bg-tertiary, #313244)'
-                    : 'var(--bg-secondary, #1e1e2e)',
-                color: msg.role === 'user' ? 'white' : 'var(--text-primary)',
-                fontSize: '0.9rem',
-                lineHeight: 1.55,
-                border: msg.role === 'system' ? '1px dashed var(--border)' : 'none',
-              }}
-            >
+            <div key={msg.id} style={{
+              padding: '10px 14px', borderRadius: 12, maxWidth: '85%',
+              alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+              background: msg.role === 'user' ? 'var(--accent, #6366f1)' : msg.role === 'system' ? 'var(--bg-tertiary, #313244)' : 'var(--bg-secondary, #1e1e2e)',
+              color: msg.role === 'user' ? 'white' : 'var(--text-primary)',
+              fontSize: '0.9rem', lineHeight: 1.55,
+              border: msg.role === 'system' ? '1px dashed var(--border)' : 'none',
+            }}>
               <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
-                {msg.details && (
-                  <div style={{ fontSize: '0.7rem', opacity: 0.55 }}>{msg.details}</div>
-                )}
-                {msg.timestamp && (
-                  <div style={{
-                    fontSize: '0.65rem',
-                    opacity: 0.45,
-                    marginLeft: 'auto',
-                  }}>
-                    {msg.timestamp}
-                  </div>
-                )}
+                {msg.details && <div style={{ fontSize: '0.7rem', opacity: 0.55 }}>{msg.details}</div>}
+                {msg.timestamp && <div style={{ fontSize: '0.65rem', opacity: 0.45, marginLeft: 'auto' }}>{msg.timestamp}</div>}
               </div>
             </div>
           ))}
-          {loading && (
-            <div style={{
-              padding: '10px 14px',
-              borderRadius: 12,
-              alignSelf: 'flex-start',
-              background: 'var(--bg-secondary, #1e1e2e)',
-            }}>
-              <div className="spinner" style={{ width: 16, height: 16 }} />
-            </div>
-          )}
-          {transcribing && (
-            <div style={{
-              padding: '8px 14px',
-              borderRadius: 12,
-              alignSelf: 'flex-start',
-              background: 'var(--bg-secondary, #1e1e2e)',
-              fontSize: '0.8rem',
-              color: 'var(--text-muted)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}>
-              <span>🎤</span> Transcribing with Whisper...
-            </div>
-          )}
+          {loading && <div style={{ padding: '10px 14px', borderRadius: 12, alignSelf: 'flex-start', background: 'var(--bg-secondary)' }}><div className="spinner" style={{ width: 16, height: 16 }} /></div>}
+          {transcribing && <div style={{ padding: '8px 14px', borderRadius: 12, alignSelf: 'flex-start', background: 'var(--bg-secondary)', fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}><span>🎤</span> Transcribing with Whisper...</div>}
           <div ref={messagesEndRef} />
         </div>
 
         {/* Input Area */}
-        <div style={{
-          padding: '8px 12px',
-          borderTop: '1px solid var(--border)',
-          background: 'var(--bg-primary)',
-        }}>
+        <div style={{ padding: '8px 12px', borderTop: '1px solid var(--border)', background: 'var(--bg-primary)' }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {/* Toggle history */}
-            <button
-              className="btn btn-sm btn-secondary"
-              style={{
-                padding: '4px 8px',
-                fontSize: '0.7rem',
-                flexShrink: 0,
-                borderRadius: 8,
-              }}
-              onClick={() => setShowHistory(!showHistory)}
-              title="Toggle history sidebar"
-            >
+            <button className="btn btn-sm btn-secondary" style={{ padding: '4px 8px', fontSize: '0.7rem', flexShrink: 0, borderRadius: 8 }} onClick={() => setShowHistory(!showHistory)} title="Toggle history sidebar">
               {showHistory ? '◀' : '📋'}
             </button>
-
-            {/* Input */}
-            <input
-              ref={inputRef}
-              type="text"
-              placeholder={
-                recording ? '🔴 Recording...' :
-                transcribing ? '🎤 Transcribing...' :
-                'Type a message or slash command...'
-              }
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={loading || transcribing}
-              style={{
-                flex: 1,
-                padding: '10px 14px',
-                borderRadius: 10,
-                border: recording ? '2px solid var(--danger)' : '1px solid var(--border)',
-                background: 'var(--bg-secondary)',
-                color: 'var(--text-primary)',
-                fontSize: '0.9rem',
-                outline: 'none',
-                transition: 'border 0.15s',
-              }}
-            />
-
-            {/* Mic button — Whisper backend */}
-            <button
-              className={`btn ${recording ? 'btn-danger' : 'btn-secondary'}`}
-              style={{
-                padding: '6px 14px',
-                fontSize: '1.1rem',
-                flexShrink: 0,
-                borderRadius: 10,
-                animation: recording ? 'pulse 0.8s infinite' : 'none',
-                background: recording ? 'var(--danger)' : undefined,
-                color: recording ? 'white' : undefined,
-              }}
-              onClick={recording ? stopRecording : startRecording}
-              disabled={loading || transcribing}
-              title={recording ? 'Stop recording' : 'Voice input (Whisper)'}
-            >
+            <input ref={inputRef} type="text" placeholder={recording ? '🔴 Recording...' : transcribing ? '🎤 Transcribing...' : 'Type a message or slash command...'}
+              value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown} disabled={loading || transcribing}
+              style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: recording ? '2px solid var(--danger)' : '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none', transition: 'border 0.15s' }} />
+            <button className={`btn ${recording ? 'btn-danger' : 'btn-secondary'}`}
+              style={{ padding: '6px 14px', fontSize: '1.1rem', flexShrink: 0, borderRadius: 10, animation: recording ? 'pulse 0.8s infinite' : 'none', background: recording ? 'var(--danger)' : undefined, color: recording ? 'white' : undefined }}
+              onClick={recording ? stopRecording : startRecording} disabled={loading || transcribing}
+              title={recording ? 'Stop recording' : 'Voice input (Whisper)'}>
               {recording ? '⏹' : transcribing ? '⏳' : '🎤'}
             </button>
-
-            {/* Send */}
-            <button
-              className="btn btn-primary"
-              onClick={() => sendMessage()}
-              disabled={loading || transcribing || !input.trim()}
-              style={{
-                padding: '6px 18px',
-                borderRadius: 10,
-                fontSize: '0.9rem',
-                flexShrink: 0,
-              }}
-            >
-              Send
-            </button>
+            <button className="btn btn-primary" onClick={() => sendMessage()} disabled={loading || transcribing || !input.trim()}
+              style={{ padding: '6px 18px', borderRadius: 10, fontSize: '0.9rem', flexShrink: 0 }}>Send</button>
           </div>
-          {recording && (
-            <div style={{
-              fontSize: '0.7rem',
-              color: 'var(--danger)',
-              marginTop: 4,
-              textAlign: 'center',
-            }}>
-              🔴 Recording — click ⏹ to stop and transcribe
-            </div>
-          )}
+          {recording && <div style={{ fontSize: '0.7rem', color: 'var(--danger)', marginTop: 4, textAlign: 'center' }}>🔴 Recording — click ⏹ to stop and transcribe</div>}
         </div>
       </div>
 
-      {/* Animations */}
       <style>{`
         @keyframes pulse {
           0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }

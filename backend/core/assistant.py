@@ -262,37 +262,27 @@ class AssistantOrchestrator:
         """Try to get real-time web search results for the question.
         
         Returns formatted search results string, or empty string if not applicable/failed.
+        Always tries to search — Ollama models can't browse the web on their own.
         """
-        # Keywords that indicate need for real-time data
-        realtime_keywords = [
-            "prezzo", "price", "tasso", "rate", "cambio", "exchange",
-            "dollaro", "euro", "bitcoin", "btc", "eth", "stock", "azioni",
-            "meteo", "weather", "tempo", "temperature",
-            "oggi", "today", "adesso", "now", "attuale", "current",
-            "notizie", "news", "ultim'ora",
+        import requests as req
+        from backend.core.logger import logger
+        
+        # Always attempt a web search for chat questions — Ollama has no web access.
+        # Skip only for clearly offline/local questions.
+        skip_patterns = [
+            "how are you", "what is your name", "who are you",
+            "what can you do", "help", "hello", "hi ", "hey ",
         ]
-        
-        question_lower = question.lower()
-        needs_realtime = any(kw in question_lower for kw in realtime_keywords)
-        
-        if not needs_realtime:
+        question_lower = question.lower().strip()
+        if any(question_lower.startswith(p) for p in skip_patterns) and len(question_lower) < 30:
             return ""
         
         try:
-            import requests as req
-            from backend.core.logger import logger
+            logger.info("Web search for: {}", question[:80])
             
-            logger.info("Attempting web search for real-time data: {}", question[:80])
-            
-            # Use DuckDuckGo Instant Answer API (free, no API key)
             r = req.get(
                 "https://api.duckduckgo.com/",
-                params={
-                    "q": question,
-                    "format": "json",
-                    "no_html": 1,
-                    "skip_disambig": 1,
-                },
+                params={"q": question, "format": "json", "no_html": 1, "skip_disambig": 1},
                 timeout=10,
             )
             if r.status_code != 200:
@@ -301,22 +291,28 @@ class AssistantOrchestrator:
             data = r.json()
             parts = []
             
-            # Abstract (instant answer)
+            # Abstract (instant answer) — highest quality
             if data.get("AbstractText"):
                 parts.append(data["AbstractText"])
                 if data.get("AbstractSource"):
                     parts.append(f"Source: {data['AbstractSource']}")
             
+            # Answer (direct answer)
+            if data.get("Answer"):
+                parts.append(f"\nAnswer: {data['Answer']}")
+            
             # Related topics
             topics = data.get("RelatedTopics", [])
             if topics:
-                parts.append("\nRelated results:")
-                for t in topics[:3]:
+                parts.append("\nRelated:")
+                for t in topics[:5]:
                     if isinstance(t, dict) and t.get("Text"):
                         parts.append(f"• {t['Text']}")
             
             if parts:
-                return "\n".join(parts)
+                result = "\n".join(parts)
+                logger.info("Web search returned {} chars", len(result))
+                return result
         except Exception:
             pass
         
