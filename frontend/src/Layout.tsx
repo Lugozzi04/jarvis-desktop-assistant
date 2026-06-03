@@ -2,6 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { api } from './api';
 import type { HealthStatus } from './api';
+import { TimerBar } from './TimerBar';
 
 function Layout() {
   const [health, setHealth] = useState<HealthStatus | null>(null);
@@ -121,6 +122,7 @@ function Layout() {
             )}
           </div>
         </div>
+        <TimerBar />
         <div className="content">
           <Outlet />
         </div>

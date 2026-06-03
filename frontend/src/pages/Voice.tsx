@@ -138,6 +138,29 @@ function Voice() {
 
   return (
     <div>
+      {/* WIP Banner */}
+      <div className="card" style={{
+        marginBottom: 20,
+        borderLeft: '4px solid #f59e0b',
+        background: 'linear-gradient(135deg, rgba(245,158,11,0.08), rgba(245,158,11,0.02))',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: '1.5rem' }}>🚧</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, fontSize: '0.95rem', color: '#f59e0b' }}>
+              Work in Progress
+            </div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: 2, lineHeight: 1.6 }}>
+              Voice features are under active development. Future capabilities will include
+              wake-word activation ("Jarvis") to launch the app, real-time transcription, and
+              full voice command pipeline.
+            </div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>
+              For now, use the 🎤 microphone button in Chat for speech-to-text input.
+            </div>
+          </div>
+        </div>
+      </div>
       <h2 style={{ marginBottom: 20, fontSize: '1.5rem' }}>Voice</h2>
 
       {/* Status Cards */}

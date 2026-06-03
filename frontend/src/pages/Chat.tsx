@@ -1,8 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import type { ChatResponse } from '../api';
-import { TimerBar } from '../TimerBar';
 
 interface Message {
   id: number;
@@ -22,6 +21,16 @@ interface Conversation {
 
 const API = 'http://localhost:8400';
 
+// Speech Recognition types (Web Speech API)
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+  resultIndex: number;
+}
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+  message: string;
+}
+
 function Chat() {
   const [messages, setMessages] = useState<Message[]>([
     { id: 0, role: 'assistant', content: 'Hello! I\'m JARVIS. How can I help you?\n\nTry slash commands:\n• /open <app>\n• /search <query>\n• /timer <duration> <message>\n• /system stats\n• /ask <question>' },
@@ -37,6 +46,12 @@ function Chat() {
   const [convId, setConvId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [showSidebar, setShowSidebar] = useState(true);
+
+  // Voice recording state
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const speechSupported = typeof window !== 'undefined' &&
+    ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
 
   // Load conversations on mount
   useEffect(() => {
@@ -55,7 +70,6 @@ function Chat() {
   }, [messages]);
 
   useEffect(() => {
-    // Focus input
     inputRef.current?.focus();
   }, [convId]);
 
@@ -122,6 +136,49 @@ function Chat() {
     return res.response;
   };
 
+  // ── Voice Input ──
+  const startListening = useCallback(() => {
+    if (!speechSupported) {
+      alert('Speech recognition is not supported in this browser. Use Chrome or Edge.');
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'it-IT';  // Italian + English fallback
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.continuous = false;
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      const transcript = event.results[0][0].transcript;
+      setInput(prev => prev + ' ' + transcript);
+    };
+
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      console.warn('Speech error:', event.error);
+      setListening(false);
+      if (event.error === 'not-allowed') {
+        alert('Microphone access denied. Please allow microphone access in your browser settings.');
+      }
+    };
+
+    recognition.onend = () => {
+      setListening(false);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setListening(true);
+  }, [speechSupported]);
+
+  const stopListening = useCallback(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      setListening(false);
+    }
+  }, []);
+
   const sendMessage = async (text?: string) => {
     const msg = (text || input).trim();
     if (!msg || loading) return;
@@ -150,7 +207,6 @@ function Chat() {
         const intentInfo = `Intent: ${res.intent.kind} → ${res.intent.skill || '?'}.${res.intent.action || '?'} (${(res.intent.confidence * 100).toFixed(0)}%)`;
         addMessage('system', intentInfo);
       }
-      // Refresh conversation list
       loadConversations();
     } catch (err) {
       addMessage('assistant', `❌ Error: ${err instanceof Error ? err.message : 'Connection failed'}`);
@@ -256,7 +312,6 @@ function Chat() {
 
       {/* Chat Area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <TimerBar />
         <div className="chat-messages" style={{ flex: 1 }}>
           {messages.map(msg => (
             <div key={msg.id} className={`message ${msg.role}`}>
@@ -284,19 +339,43 @@ function Chat() {
             <input
               ref={inputRef}
               type="text"
-              placeholder="Type a message or slash command..."
+              placeholder={listening ? '🎤 Listening...' : 'Type a message or slash command...'}
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={loading}
               style={{ flex: 1 }}
             />
+            {speechSupported && (
+              <button
+                className={`btn ${listening ? 'btn-danger' : 'btn-secondary'}`}
+                style={{
+                  padding: '4px 12px',
+                  fontSize: '1.1rem',
+                  flexShrink: 0,
+                  animation: listening ? 'pulse 1s infinite' : 'none',
+                }}
+                onClick={listening ? stopListening : startListening}
+                disabled={loading}
+                title={listening ? 'Stop recording' : 'Voice input'}
+              >
+                🎤
+              </button>
+            )}
             <button className="btn btn-primary" onClick={() => sendMessage()} disabled={loading}>
               Send
             </button>
           </div>
         </div>
       </div>
+
+      {/* Pulse animation for mic button */}
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.15); opacity: 0.7; }
+        }
+      `}</style>
     </div>
   );
 }
