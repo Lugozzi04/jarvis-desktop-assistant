@@ -79,16 +79,16 @@ def detect():
         return {"apps": apps, "total": len(apps)}
     except Exception as exc:
         logger.error("App detection failed: {}", exc)
-        # Fallback: return built-in apps only
+        # Fallback: return built-in apps only (no undetected placeholders)
         fallback = [
             {"name": "Calculator", "command": "calc.exe", "path": "calc.exe", "category": "system", "aliases": ["calc", "calcolatrice"], "builtin": True, "detected": True},
             {"name": "Notepad", "command": "notepad.exe", "path": "notepad.exe", "category": "system", "aliases": ["notepad", "note"], "builtin": True, "detected": True},
-            {"name": "Explorer", "command": "explorer.exe", "path": "explorer.exe", "category": "system", "aliases": ["explorer", "files"], "builtin": True, "detected": True},
+            {"name": "File Explorer", "command": "explorer.exe", "path": "explorer.exe", "category": "system", "aliases": ["explorer", "files"], "builtin": True, "detected": True},
             {"name": "Terminal", "command": "wt.exe", "path": "wt.exe", "category": "system", "aliases": ["terminal", "term"], "builtin": True, "detected": True},
-            {"name": "Discord", "command": "discord", "path": "", "category": "desktop", "aliases": ["discord"], "builtin": False, "detected": False},
-            {"name": "Spotify", "command": "spotify", "path": "", "category": "desktop", "aliases": ["spotify"], "builtin": False, "detected": False},
-            {"name": "VS Code", "command": "code", "path": "", "category": "desktop", "aliases": ["vscode", "code"], "builtin": False, "detected": False},
-            {"name": "OBS Studio", "command": "obs64.exe", "path": "", "category": "desktop", "aliases": ["obs"], "builtin": False, "detected": False},
+            {"name": "Settings", "command": "start ms-settings:", "path": "start ms-settings:", "category": "system", "aliases": ["settings", "impostazioni"], "builtin": True, "detected": True},
+            {"name": "Task Manager", "command": "taskmgr.exe", "path": "taskmgr.exe", "category": "system", "aliases": ["task manager", "taskmgr"], "builtin": True, "detected": True},
+            {"name": "Command Prompt", "command": "cmd.exe", "path": "cmd.exe", "category": "system", "aliases": ["cmd", "command prompt"], "builtin": True, "detected": True},
+            {"name": "PowerShell", "command": "powershell.exe", "path": "powershell.exe", "category": "system", "aliases": ["powershell", "ps"], "builtin": True, "detected": True},
         ]
         return {"apps": fallback, "total": len(fallback), "error": str(exc)}
 
