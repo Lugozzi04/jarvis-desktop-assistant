@@ -47,7 +47,23 @@ class AppSkill(BaseSkill):
         if not app_name:
             return self._result("open", success=False, error="No app name provided")
 
-        app_name_lower = app_name.lower().strip()
+        # ── Security: sanitize input ──
+        app_name = app_name.strip()
+        # Block path traversal and command injection attempts
+        dangerous_chars = ["../", "..\\", "|", ";", "&&", "||", "`", "$(", ">", "<", "\n", "\r"]
+        for char in dangerous_chars:
+            if char in app_name:
+                return self._result(
+                    "open",
+                    success=False,
+                    error=f"Invalid characters in app name. Use a simple app name like 'discord' or 'vscode'.",
+                )
+
+        # Limit length
+        if len(app_name) > 100:
+            return self._result("open", success=False, error="App name too long")
+
+        app_name_lower = app_name.lower()
 
         # 1️⃣ Try config store first (user-configured via Setup Wizard)
         app_config = self._resolve_from_store(app_name_lower)

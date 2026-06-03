@@ -11,3 +11,5 @@ python-multipart>=0.0.9
 psutil>=5.9.0
 pywebview>=5.0
 faster-whisper>=1.0.0
+edge-tts>=6.1.0
+requests>=2.31.0

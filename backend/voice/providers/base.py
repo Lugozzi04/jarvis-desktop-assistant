@@ -26,6 +26,9 @@ class SynthesisResult(BaseModel):
     provider: str = ""
     audio_path: str | None = None
     audio_url: str | None = None
+    audio_data: bytes | None = None
+    format: str = "mp3"
+    voice: str = ""
     error: str | None = None
 
 

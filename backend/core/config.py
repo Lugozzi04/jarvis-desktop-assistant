@@ -44,6 +44,7 @@ class VoiceConfig(BaseSettings):
     enabled: bool = False
     stt_provider: str = "faster_whisper"
     tts_provider: str = "edge"
+    tts_voice: str = "it-IT-ElsaNeural"
     wake_word_enabled: bool = False
     wake_word: str = "jarvis"
 

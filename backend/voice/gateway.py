@@ -34,12 +34,20 @@ class VoiceGateway:
             self._stt_provider = MockSTTProvider()
 
         # TTS
-        if tts_provider_name in ("mock",):
+        if tts_provider_name in ("edge", "edge_tts"):
+            from backend.voice.providers.edge_tts import EdgeTTSProvider
+            self._tts_provider = EdgeTTSProvider()
+        elif tts_provider_name in ("mock",):
             from backend.voice.providers.mock_tts import MockTTSProvider
             self._tts_provider = MockTTSProvider()
         else:
-            from backend.voice.providers.mock_tts import MockTTSProvider
-            self._tts_provider = MockTTSProvider()
+            # Default: try edge, fall back to mock
+            try:
+                from backend.voice.providers.edge_tts import EdgeTTSProvider
+                self._tts_provider = EdgeTTSProvider()
+            except Exception:
+                from backend.voice.providers.mock_tts import MockTTSProvider
+                self._tts_provider = MockTTSProvider()
 
         self._initialized = True
         logger.info(
