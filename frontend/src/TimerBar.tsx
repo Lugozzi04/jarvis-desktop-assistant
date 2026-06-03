@@ -164,7 +164,6 @@ export function TimerBar() {
       {/* Timer Completion Notification */}
       {completedTimer && (
         <div
-          onClick={dismiss}
           style={{
             position: 'fixed',
             top: 20,
@@ -172,29 +171,49 @@ export function TimerBar() {
             zIndex: 10000,
             background: 'var(--accent, #6366f1)',
             color: 'white',
-            padding: '16px 24px',
+            padding: '16px 20px',
             borderRadius: 12,
             boxShadow: '0 8px 32px rgba(99, 102, 241, 0.4)',
-            cursor: 'pointer',
-            animation: 'slideIn 0.3s ease-out',
-            maxWidth: 320,
+            animation: 'slideInRight 0.3s ease-out',
+            maxWidth: 340,
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             gap: 10,
+            cursor: 'pointer',
           }}
+          onClick={dismiss}
         >
-          <span style={{ fontSize: '1.5rem' }}>⏰</span>
-          <div>
+          <span style={{ fontSize: '1.8rem', flexShrink: 0, lineHeight: 1 }}>⏰</span>
+          <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>
               {completedTimer.type === 'reminder' ? '🔔 Reminder' : '⏱️ Timer Finished'}!
             </div>
-            <div style={{ fontSize: '0.85rem', opacity: 0.9 }}>
+            <div style={{ fontSize: '0.85rem', opacity: 0.9, marginTop: 2 }}>
               {completedTimer.message}
             </div>
-            <div style={{ fontSize: '0.7rem', opacity: 0.7, marginTop: 4 }}>
-              Click to dismiss
-            </div>
           </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); dismiss(); }}
+            style={{
+              background: 'rgba(255,255,255,0.2)',
+              border: 'none',
+              color: 'white',
+              borderRadius: '50%',
+              width: 24,
+              height: 24,
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              padding: 0,
+              lineHeight: 1,
+            }}
+            title="Dismiss"
+          >
+            ✕
+          </button>
         </div>
       )}
 
@@ -204,8 +223,8 @@ export function TimerBar() {
           0% { transform: translateY(0) rotate(0deg); opacity: 1; }
           100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
         }
-        @keyframes slideIn {
-          from { transform: translateX(100px); opacity: 0; }
+        @keyframes slideInRight {
+          from { transform: translateX(120px); opacity: 0; }
           to { transform: translateX(0); opacity: 1; }
         }
       `}</style>

@@ -8,6 +8,7 @@ interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   details?: string;
+  timestamp: string;
 }
 
 interface Conversation {
@@ -23,7 +24,7 @@ const API = 'http://localhost:8400';
 
 function Chat() {
   const [messages, setMessages] = useState<Message[]>([
-    { id: 0, role: 'assistant', content: 'Hello! I\'m JARVIS. How can I help you?\n\nTry slash commands:\n• /open <app>\n• /search <query>\n• /timer <duration> <message>\n• /system stats\n• /ask <question>' },
+    { id: 0, role: 'assistant', content: 'Hello! I\'m JARVIS. How can I help you?\n\nTry slash commands:\n• /open <app>\n• /search <query>\n• /timer <duration> <message>\n• /system stats\n• /ask <question>', timestamp: '' },
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -78,7 +79,7 @@ function Chat() {
 
   const startNewChat = () => {
     setMessages([
-      { id: 0, role: 'assistant', content: 'Hello! I\'m JARVIS. How can I help you?\n\nTry slash commands:\n• /open <app>\n• /search <query>\n• /timer <duration> <message>\n• /system stats\n• /ask <question>' },
+      { id: 0, role: 'assistant', content: 'Hello! I\'m JARVIS. How can I help you?\n\nTry slash commands:\n• /open <app>\n• /search <query>\n• /timer <duration> <message>\n• /system stats\n• /ask <question>', timestamp: '' },
     ]);
     msgId.current = 1;
     setConvId(null);
@@ -91,10 +92,10 @@ function Chat() {
       const data = await res.json();
       if (data.messages) {
         const msgs: Message[] = [
-          { id: 0, role: 'assistant', content: 'Hello! I\'m JARVIS. How can I help you?' },
+          { id: 0, role: 'assistant', content: 'Hello! I\'m JARVIS. How can I help you?', timestamp: '' },
         ];
         data.messages.forEach((m: { id: number; role: string; content: string }, i: number) => {
-          msgs.push({ id: i + 1, role: m.role as Message['role'], content: m.content });
+          msgs.push({ id: i + 1, role: m.role as Message['role'], content: m.content, timestamp: '' });
         });
         msgId.current = msgs.length;
         setMessages(msgs);
@@ -176,7 +177,13 @@ function Chat() {
   // ── Messaging ──
 
   const addMessage = (role: Message['role'], content: string, details?: string) => {
-    setMessages(prev => [...prev, { id: msgId.current++, role, content, details }]);
+    setMessages(prev => [...prev, {
+      id: msgId.current++,
+      role,
+      content,
+      details,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    }]);
   };
 
   const formatResult = (res: ChatResponse): string => {
@@ -389,9 +396,20 @@ function Chat() {
               }}
             >
               <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
-              {msg.details && (
-                <div style={{ fontSize: '0.7rem', opacity: 0.55, marginTop: 4 }}>{msg.details}</div>
-              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                {msg.details && (
+                  <div style={{ fontSize: '0.7rem', opacity: 0.55 }}>{msg.details}</div>
+                )}
+                {msg.timestamp && (
+                  <div style={{
+                    fontSize: '0.65rem',
+                    opacity: 0.45,
+                    marginLeft: 'auto',
+                  }}>
+                    {msg.timestamp}
+                  </div>
+                )}
+              </div>
             </div>
           ))}
           {loading && (
