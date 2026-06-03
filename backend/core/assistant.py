@@ -262,10 +262,10 @@ class AssistantOrchestrator:
         """Try to get real-time web search results for the question.
         
         Returns formatted search results string, or empty string if not applicable/failed.
-        Always tries to search — Ollama models can't browse the web on their own.
+        Uses Google + SearXNG — NO DuckDuckGo.
         """
-        import requests as req
         from backend.core.logger import logger
+        from backend.skills.web_search.search_provider import search_web, format_results
         
         # Always attempt a web search for chat questions — Ollama has no web access.
         # Skip only for clearly offline/local questions.
@@ -279,42 +279,11 @@ class AssistantOrchestrator:
         
         try:
             logger.info("Web search for: {}", question[:80])
-            
-            r = req.get(
-                "https://api.duckduckgo.com/",
-                params={"q": question, "format": "json", "no_html": 1, "skip_disambig": 1},
-                timeout=10,
-            )
-            if r.status_code != 200:
-                return ""
-            
-            data = r.json()
-            parts = []
-            
-            # Abstract (instant answer) — highest quality
-            if data.get("AbstractText"):
-                parts.append(data["AbstractText"])
-                if data.get("AbstractSource"):
-                    parts.append(f"Source: {data['AbstractSource']}")
-            
-            # Answer (direct answer)
-            if data.get("Answer"):
-                parts.append(f"\nAnswer: {data['Answer']}")
-            
-            # Related topics
-            topics = data.get("RelatedTopics", [])
-            if topics:
-                parts.append("\nRelated:")
-                for t in topics[:5]:
-                    if isinstance(t, dict) and t.get("Text"):
-                        parts.append(f"• {t['Text']}")
-            
-            if parts:
-                result = "\n".join(parts)
-                logger.info("Web search returned {} chars", len(result))
-                return result
-        except Exception:
-            pass
+            results = search_web(question, max_results=5)
+            if results:
+                return format_results(question, results)
+        except Exception as exc:
+            logger.debug("Web search unavailable: {}", exc)
         
         return ""
 

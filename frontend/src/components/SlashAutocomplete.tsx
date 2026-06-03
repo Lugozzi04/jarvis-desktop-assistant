@@ -174,6 +174,14 @@ const SlashAutocomplete = forwardRef<SlashAutocompleteHandle, Props>(
   const [appNames, setAppNames] = useState<string[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
 
+  // Refs to hold latest state for handleKeyDown (avoids stale closures)
+  const suggestionsRef = useRef<Suggestion[]>([]);
+  const activeIndexRef = useRef(0);
+  const onSelectRef = useRef(onSelect);
+  useEffect(() => { suggestionsRef.current = suggestions; }, [suggestions]);
+  useEffect(() => { activeIndexRef.current = activeIndex; }, [activeIndex]);
+  useEffect(() => { onSelectRef.current = onSelect; }, [onSelect]);
+
   // Fetch installed apps for /open autocomplete
   useEffect(() => {
     fetch(`${API}/api/apps`)
@@ -196,14 +204,14 @@ const SlashAutocomplete = forwardRef<SlashAutocompleteHandle, Props>(
       return;
     }
 
-    const text = value.slice(1); // remove leading "/"
-    const parts = text.split(/\s+/);
+    const raw = value.slice(1); // remove leading "/"
+    const hasTrailingSpace = raw.endsWith(' ');
+    const trimmed = raw.trimEnd();
+    const parts = trimmed.length ? trimmed.split(/\s+/) : [];
     const firstToken = parts[0] || '';
-    const rest = parts.slice(1).join(' ').trimStart();
 
-    // Case 1: typing the command name (first token incomplete) — "/op" or "/"
-    // No space after command yet, or only slash
-    if (parts.length === 1 && !text.endsWith(' ')) {
+    // Case 1: just "/" or typing the command name — e.g. "/op"
+    if (parts.length <= 1 && !hasTrailingSpace) {
       const matches = COMMANDS
         .filter(c => c.name.startsWith(firstToken.toLowerCase()))
         .map(c => ({
@@ -217,8 +225,8 @@ const SlashAutocomplete = forwardRef<SlashAutocompleteHandle, Props>(
       return;
     }
 
-    // Case 2: command typed, space after — "/open " — show sub-commands
-    if (parts.length === 1 && text.endsWith(' ')) {
+    // Case 2: command typed + space — show sub-commands — e.g. "/open "
+    if (parts.length === 1 && hasTrailingSpace) {
       const cmd = COMMANDS.find(c => c.name === firstToken.toLowerCase());
       if (cmd?.subs) {
         const matches = cmd.subs.map(s => ({
@@ -236,10 +244,11 @@ const SlashAutocomplete = forwardRef<SlashAutocompleteHandle, Props>(
       return;
     }
 
-    // Case 3: command + partial sub-command — "/open ap" or "/open app "
+    // Case 3: command + sub-command (partial or complete)
     if (parts.length >= 2) {
       const cmd = COMMANDS.find(c => c.name === firstToken.toLowerCase());
       const subToken = parts[1] || '';
+      const rest = parts.slice(2).join(' ').trimStart();
 
       if (!cmd?.subs) {
         setSuggestions([]);
@@ -247,18 +256,15 @@ const SlashAutocomplete = forwardRef<SlashAutocompleteHandle, Props>(
         return;
       }
 
-      // If we're on "/open app " (sub-command complete + space)
-      if (rest.length > 0 || (parts.length === 2 && text.endsWith(' '))) {
-        // Try dynamic fetch for app names
-        const sub = cmd.subs.find(s => s.label === subToken.toLowerCase());
-        if (sub?.dynamic === '/api/apps' && appNames.length > 0) {
-          // Filter app names based on what's typed after
-          const afterSub = rest;
+      // If sub-command is complete + trailing space → dynamic suggestions (apps, etc.)
+      const subExact = cmd.subs.find(s => s.label === subToken.toLowerCase());
+      if (subExact && hasTrailingSpace) {
+        if (subExact.dynamic === '/api/apps' && appNames.length > 0) {
           const matches = appNames
-            .filter(a => a.startsWith(afterSub.toLowerCase()))
+            .filter(a => a.startsWith(rest.toLowerCase()))
             .slice(0, 8)
             .map(a => ({
-              text: `/${cmd.name} ${sub.label} ${a}`,
+              text: `/${cmd.name} ${subExact.label} ${a}`,
               display: a,
               hint: 'app',
               isCommand: false,
@@ -272,7 +278,28 @@ const SlashAutocomplete = forwardRef<SlashAutocompleteHandle, Props>(
         return;
       }
 
-      // Partial sub-command — "/open ap"
+      // If sub-command complete and rest is being typed → dynamic filtering
+      if (subExact && !hasTrailingSpace && rest.length > 0) {
+        if (subExact.dynamic === '/api/apps' && appNames.length > 0) {
+          const matches = appNames
+            .filter(a => a.startsWith(rest.toLowerCase()))
+            .slice(0, 8)
+            .map(a => ({
+              text: `/${cmd.name} ${subExact.label} ${a}`,
+              display: a,
+              hint: 'app',
+              isCommand: false,
+            }));
+          setSuggestions(matches);
+          setActiveIndex(0);
+          return;
+        }
+        setSuggestions([]);
+        setActiveIndex(0);
+        return;
+      }
+
+      // Partial sub-command — filter by prefix — e.g. "/open ap"
       const matches = cmd.subs
         .filter(s => s.label.startsWith(subToken.toLowerCase()))
         .map(s => ({
@@ -291,18 +318,21 @@ const SlashAutocomplete = forwardRef<SlashAutocompleteHandle, Props>(
   }, [value, disabled, appNames]);
 
   // Expose handleKeyDown to parent via ref
+  // Uses refs instead of state to avoid stale closures
   useImperativeHandle(ref, () => ({
     handleKeyDown(e: React.KeyboardEvent): boolean {
-      if (suggestions.length === 0) return false;
+      const cur = suggestionsRef.current;
+      const idx = activeIndexRef.current;
+      if (cur.length === 0) return false;
 
       if (e.key === 'Tab') {
         e.preventDefault();
-        onSelect(suggestions[activeIndex].text);
+        onSelectRef.current(cur[idx].text);
         return true;
       }
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setActiveIndex(i => Math.min(i + 1, suggestions.length - 1));
+        setActiveIndex(i => Math.min(i + 1, cur.length - 1));
         return true;
       }
       if (e.key === 'ArrowUp') {
@@ -310,9 +340,9 @@ const SlashAutocomplete = forwardRef<SlashAutocompleteHandle, Props>(
         setActiveIndex(i => Math.max(i - 1, 0));
         return true;
       }
-      if (e.key === 'Enter' && suggestions.length > 0) {
+      if (e.key === 'Enter' && cur.length > 0) {
         e.preventDefault();
-        onSelect(suggestions[activeIndex].text);
+        onSelectRef.current(cur[idx].text);
         return true;
       }
       if (e.key === 'Escape') {
@@ -321,7 +351,7 @@ const SlashAutocomplete = forwardRef<SlashAutocompleteHandle, Props>(
       }
       return false;
     },
-  }), [suggestions, activeIndex, onSelect]);
+  }), []);
 
   // Scroll active into view
   useEffect(() => {
