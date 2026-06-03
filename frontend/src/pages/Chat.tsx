@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import type { ChatResponse } from '../api';
+import SlashAutocomplete from '../components/SlashAutocomplete';
 
 interface Message {
   id: number;
@@ -31,6 +32,7 @@ function Chat() {
   const [searchParams] = useSearchParams();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const autocompleteRef = useRef<{ handleKeyDown: (e: React.KeyboardEvent) => boolean } | null>(null);
   const msgId = useRef(1);
 
   // Conversation state — null = temporary (unsaved)
@@ -212,6 +214,8 @@ function Chat() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Let autocomplete consume the event if it has suggestions visible
+    if (autocompleteRef.current?.handleKeyDown(e)) return;
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
 
@@ -311,7 +315,13 @@ function Chat() {
         </div>
 
         {/* Input Area */}
-        <div style={{ padding: '8px 12px', borderTop: '1px solid var(--border)', background: 'var(--bg-primary)' }}>
+        <div style={{ padding: '8px 12px', borderTop: '1px solid var(--border)', background: 'var(--bg-primary)', position: 'relative' }}>
+          <SlashAutocomplete
+            ref={autocompleteRef}
+            value={input}
+            onSelect={(text) => { setInput(text); inputRef.current?.focus(); }}
+            disabled={loading || transcribing}
+          />
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button className="btn btn-sm btn-secondary" style={{ padding: '4px 8px', fontSize: '0.7rem', flexShrink: 0, borderRadius: 8 }} onClick={() => setShowHistory(!showHistory)} title="Toggle history sidebar">
               {showHistory ? '◀' : '📋'}
