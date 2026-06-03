@@ -239,9 +239,11 @@ function Dashboard() {
             </div>
           )}
           <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.5 }}>
-            💡 Per l'italiano installa <b>mistral:7b</b>:<br/>
-            <code style={{ fontSize: '0.65rem', background: 'var(--bg-tertiary)', padding: '2px 4px', borderRadius: 4 }}>ollama pull mistral:7b</code><br/>
-            Poi imposta <code style={{ fontSize: '0.65rem', background: 'var(--bg-tertiary)', padding: '2px 4px', borderRadius: 4 }}>LLM_CHAT_MODEL=mistral:7b</code> in .env
+            💡 <b>Modelli consigliati con tool calling:</b><br/>
+            <code style={{ fontSize: '0.65rem', background: 'var(--bg-tertiary)', padding: '2px 4px', borderRadius: 4 }}>qwen2.5:7b</code> (default, cinese ma funziona)<br/>
+            <code style={{ fontSize: '0.65rem', background: 'var(--bg-tertiary)', padding: '2px 4px', borderRadius: 4 }}>mistral:7b</code> (migliore italiano)<br/>
+            <code style={{ fontSize: '0.65rem', background: 'var(--bg-tertiary)', padding: '2px 4px', borderRadius: 4 }}>llama3.2:3b</code> (leggero, buon italiano)<br/>
+            Cambia con <code style={{ fontSize: '0.65rem', background: 'var(--bg-tertiary)', padding: '2px 4px', borderRadius: 4 }}>LLM_CHAT_MODEL=mistral:7b</code> in .env
           </div>
         </StatusCard>
 

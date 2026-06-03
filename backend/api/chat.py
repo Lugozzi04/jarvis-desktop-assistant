@@ -1,6 +1,13 @@
-"""Chat API — natural language and slash command input with conversation history."""
+"""Chat API — natural language and slash command input with conversation history.
+
+Uses Ollama's native TOOL CALLING for web search.
+The model decides when to search — no forced external API calls.
+"""
 
 from __future__ import annotations
+
+import json
+from datetime import datetime, timezone
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -29,6 +36,93 @@ class ChatResponse(BaseModel):
     duration_ms: float = 0.0
 
 
+# ── Tools that Ollama can call ──
+
+OLLAMA_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "web_search",
+            "description": (
+                "Cerca informazioni aggiornate sul web. Usa questo strumento quando "
+                "hai bisogno di dati in tempo reale (prezzi, meteo, notizie, fatti recenti). "
+                "NON usarlo per domande di cultura generale che già conosci."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "La query di ricerca (in italiano o inglese)",
+                    }
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_current_time",
+            "description": "Ottieni data e ora corrente.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+]
+
+
+def _execute_tool(name: str, args: dict) -> str:
+    """Execute a tool and return the result as a string."""
+    if name == "web_search":
+        query = args.get("query", "")
+        if not query:
+            return "Nessuna query fornita."
+        try:
+            from backend.skills.web_search.search_provider import search_web, format_results
+            results = search_web(query, max_results=5)
+            return format_results(query, results)
+        except Exception as exc:
+            logger.warning("Tool web_search failed: {}", exc)
+            return f"Ricerca fallita: {exc}"
+
+    elif name == "get_current_time":
+        now = datetime.now(timezone.utc)
+        it_now = now.strftime("%d/%m/%Y %H:%M:%S")
+        return f"Data e ora correnti: {it_now} (UTC)"
+
+    return f"Tool sconosciuto: {name}"
+
+
+def _build_system_prompt(lang: str) -> str:
+    """Build the system prompt with language and tool instructions."""
+    if lang == "it":
+        return (
+            "Sei JARVIS, un assistente virtuale italiano che vive in un desktop Windows. "
+            "PARLI ESCLUSIVAMENTE IN ITALIANO. Non usare mai altre lingue.\n\n"
+            "HAI ACCESSO A QUESTI STRUMENTI:\n"
+            "- web_search: cerca informazioni aggiornate su internet. Usalo per "
+            "prezzi, meteo, notizie, eventi recenti. NON serve per domande di cultura generale.\n"
+            "- get_current_time: ottieni data e ora attuale.\n\n"
+            "REGOLE IMPORTANTI:\n"
+            "- Usa gli strumenti SOLO quando necessario.\n"
+            "- Per domande sulla conversazione in corso, usa lo storico.\n"
+            "- Rispondi in modo conciso (3-5 frasi).\n"
+            "- Se usi risultati di ricerca, cita le fonti (URL)."
+        )
+    else:
+        return (
+            "You are JARVIS, a helpful desktop assistant. "
+            "Respond concisely in English.\n\n"
+            "TOOLS AVAILABLE:\n"
+            "- web_search: search the web for real-time info.\n"
+            "- get_current_time: get current date and time.\n\n"
+            "RULES:\n"
+            "- Use tools ONLY when needed.\n"
+            "- Use conversation history for context.\n"
+            "- Cite sources when using web data."
+        )
+
+
 @router.post("/chat", response_model=ChatResponse)
 def chat(request: ChatRequest):
     """Process a chat message through the full JARVIS pipeline with history."""
@@ -46,9 +140,9 @@ def chat(request: ChatRequest):
     result = assistant.process_input(user_input)
     response_text = result["response"]
 
-    # For non-slash messages in a conversation, use LLM with full context
+    # For non-slash messages in a conversation, use LLM with tool calling
     if conv_id and not is_slash:
-        response_text = _chat_with_context(conv_id, request.message, response_text)
+        response_text = _chat_with_tools(conv_id, request.message, response_text)
 
     if conv_id and response_text:
         conversation_store.add_message(conv_id, "assistant", response_text)
@@ -63,32 +157,17 @@ def chat(request: ChatRequest):
     )
 
 
-def _chat_with_context(conv_id: str, user_message: str, fallback: str) -> str:
-    """ONE call to Ollama with: history + web search + language.
+def _chat_with_tools(conv_id: str, user_message: str, fallback: str) -> str:
+    """Single Ollama call with native TOOL CALLING.
 
-    Tries models in order: mistral:7b → llama3.2:3b → qwen2.5:7b (fallback).
-    Strong Italian system prompt prevents model from switching languages.
+    The model decides whether to use tools (web_search, get_current_time).
+    If it requests a tool, we execute it and send results back.
+    Max 3 tool-calling rounds to prevent loops.
     """
     try:
         import requests
 
-        # ── 1. Conversation history ──
-        history = conversation_store.get_context_messages(conv_id, max_messages=20)
-
-        # ── 2. Web search (Italian region, filtered) ──
-        web_context = ""
-        try:
-            from backend.skills.web_search.search_provider import search_web, format_results
-            results = search_web(user_message, max_results=5)
-            if results:
-                # Filter out non-Italian/non-English results
-                filtered = _filter_results_by_language(results)
-                if filtered:
-                    web_context = format_results(user_message, filtered)
-        except Exception as exc:
-            logger.debug("Web search in chat failed: {}", exc)
-
-        # ── 3. Language ──
+        # ── 1. Language ──
         lang = "it"
         try:
             from backend.api.settings import get_language
@@ -96,114 +175,98 @@ def _chat_with_context(conv_id: str, user_message: str, fallback: str) -> str:
         except Exception:
             pass
 
-        # ── 4. System prompt ──
-        if lang == "it":
-            system_content = (
-                "Sei JARVIS, un assistente virtuale italiano. "
-                "PARLI ESCLUSIVAMENTE IN ITALIANO. Non usare mai il cinese, "
-                "l'inglese o qualsiasi altra lingua. "
-                "Rispondi in modo conciso, preciso e utile. "
-                "Usa la cronologia della conversazione per mantenere il contesto. "
-                "Se ti vengono forniti risultati di ricerca web in italiano, usali "
-                "per risposte accurate e aggiornate. "
-                "Se i risultati di ricerca sono in altre lingue, IGNORALI e rispondi "
-                "usando solo la tua conoscenza interna IN ITALIANO."
-            )
-        else:
-            system_content = (
-                "You are JARVIS, a helpful desktop assistant. Respond concisely in English. "
-                "Use conversation history for context. "
-                "If web search results are provided, use them for accurate answers. "
-                "Always cite sources when using web data."
-            )
+        # ── 2. Conversation history ──
+        history = conversation_store.get_context_messages(conv_id, max_messages=20)
 
-        # ── 5. User prompt ──
-        user_content = user_message
-        if web_context:
-            user_content = (
-                f"RISULTATI RICERCA WEB (usa solo se in italiano):\n{web_context}\n\n"
-                f"DOMANDA UTENTE: {user_message}"
-            )
-
-        # ── 6. Messages array ──
+        # ── 3. Build messages ──
+        system_content = _build_system_prompt(lang)
         messages = [{"role": "system", "content": system_content}]
         messages.extend(history)
-        messages.append({"role": "user", "content": user_content})
+        messages.append({"role": "user", "content": user_message})
 
-        logger.info(
-            "Chat: {} history msgs, {} web chars, lang={}",
-            len(history), len(web_context), lang,
-        )
+        # ── 4. Ollama model ──
+        model = getattr(settings.llm, 'chat_model', 'qwen2.5:7b') or 'qwen2.5:7b'
+        ollama_url = (settings.llm.base_url or "http://localhost:11434").rstrip("/")
 
-        # ── 7. Ollama call with model fallback ──
-        ollama_url = settings.llm.base_url or "http://localhost:11434"
-        models_to_try = [
-            settings.llm.chat_model,       # configured: default mistral:7b
-            "llama3.2:3b",                  # good fallback for Italian
-            "qwen2.5:7b",                   # last resort
-        ]
+        logger.info("Chat with tools: model={}, history={} msgs, lang={}", model, len(history), lang)
 
-        for model in models_to_try:
-            try:
-                r = requests.post(
-                    f"{ollama_url}/api/chat",
-                    json={
-                        "model": model,
-                        "messages": messages,
-                        "stream": False,
-                        "options": {"temperature": 0.5},
-                    },
-                    timeout=45,
-                )
-                if r.status_code == 200:
-                    content = r.json().get("message", {}).get("content", "")
-                    if content and len(content.strip()) > 10:
-                        logger.info("Chat response from model: {}", model)
-                        return content
-                else:
-                    logger.debug("Model {} returned status {}", model, r.status_code)
-            except Exception as exc:
-                logger.debug("Model {} failed: {}", model, exc)
-                continue
+        # ── 5. Tool-calling loop (max 3 rounds) ──
+        for round_num in range(3):
+            payload = {
+                "model": model,
+                "messages": messages,
+                "stream": False,
+                "tools": OLLAMA_TOOLS,
+                "options": {"temperature": 0.5},
+            }
 
-        # ── 8. All models failed → return web results or fallback ──
-        if web_context:
-            return (
-                f"🌐 **Risultati ricerca web** (Ollama non disponibile):\n\n"
-                f"{web_context}\n\n"
-                f"_Installa Ollama e un modello italiano: `ollama pull mistral:7b`_"
+            r = requests.post(f"{ollama_url}/api/chat", json=payload, timeout=60)
+            if r.status_code != 200:
+                logger.warning("Ollama returned {}", r.status_code)
+                break
+
+            data = r.json()
+            msg = data.get("message", {})
+            content = msg.get("content", "")
+            tool_calls = msg.get("tool_calls", [])
+
+            # No tool calls → model gave final answer
+            if not tool_calls:
+                if content and len(content.strip()) > 5:
+                    return content
+                break
+
+            # Model wants to use tools
+            logger.info("Tool call round {}: {} tools requested", round_num + 1, len(tool_calls))
+
+            # Add assistant message with tool calls
+            messages.append({
+                "role": "assistant",
+                "content": content or "",
+                "tool_calls": tool_calls,
+            })
+
+            # Execute each tool and add results
+            for tc in tool_calls:
+                fn = tc.get("function", {})
+                tool_name = fn.get("name", "")
+                tool_args = fn.get("arguments", {})
+
+                # Parse args if string
+                if isinstance(tool_args, str):
+                    try:
+                        tool_args = json.loads(tool_args)
+                    except json.JSONDecodeError:
+                        tool_args = {}
+
+                logger.info("Executing tool: {} args={}", tool_name, tool_args)
+                tool_result = _execute_tool(tool_name, tool_args)
+
+                messages.append({
+                    "role": "tool",
+                    "content": tool_result,
+                })
+
+        # ── 6. If we exhausted rounds, make a final call without tools ──
+        try:
+            r = requests.post(
+                f"{ollama_url}/api/chat",
+                json={
+                    "model": model,
+                    "messages": messages,
+                    "stream": False,
+                    "options": {"temperature": 0.5},
+                },
+                timeout=60,
             )
+            if r.status_code == 200:
+                final = r.json().get("message", {}).get("content", "")
+                if final.strip():
+                    return final
+        except Exception:
+            pass
 
     except Exception as exc:
-        logger.warning("Chat context failed: {}", exc)
+        logger.warning("Chat with tools failed: {}", exc)
 
     return fallback
-
-
-def _filter_results_by_language(results: list[dict[str, str]]) -> list[dict[str, str]]:
-    """Keep only results likely in Italian or English. Filter out Chinese, Japanese, etc."""
-    # CJK Unicode ranges
-    cjk_ranges = [
-        (0x4E00, 0x9FFF),   # CJK Unified Ideographs
-        (0x3400, 0x4DBF),   # CJK Unified Ideographs Extension A
-        (0x3040, 0x309F),   # Hiragana
-        (0x30A0, 0x30FF),   # Katakana
-        (0xAC00, 0xD7AF),   # Hangul
-    ]
-
-    def has_cjk(text: str) -> bool:
-        for ch in text:
-            cp = ord(ch)
-            for lo, hi in cjk_ranges:
-                if lo <= cp <= hi:
-                    return True
-        return False
-
-    filtered = []
-    for r in results:
-        text = (r.get("title", "") + " " + r.get("snippet", ""))
-        if not has_cjk(text):
-            filtered.append(r)
-
-    # If filtering removed everything, return original (better than nothing)
-    return filtered if filtered else results

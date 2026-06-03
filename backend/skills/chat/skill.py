@@ -1,11 +1,13 @@
-"""ChatSkill — general-purpose conversational AI.
+"""ChatSkill — general-purpose conversational AI with tool calling.
 
-Answers questions, explains concepts, summarizes text, and engages
-in conversation. Uses the LLM Gateway when available.
+Uses Ollama's native TOOL CALLING for web search.
+The model decides when to search — no forced external API calls.
 """
 
 from __future__ import annotations
 
+import json
+from datetime import datetime, timezone
 from typing import Any
 
 from backend.core.config import settings
@@ -13,9 +15,35 @@ from backend.core.logger import logger
 from backend.core.schemas import ActionResult
 from backend.skills.base import BaseSkill
 
+# Same tools as chat.py
+_OLLAMA_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "web_search",
+            "description": "Search the web for real-time information. Use for prices, weather, news, recent events.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "The search query"}
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_current_time",
+            "description": "Get current date and time.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+]
+
 
 class ChatSkill(BaseSkill):
-    """General-purpose chatbot skill."""
+    """General-purpose chatbot skill with tool calling."""
 
     def execute(self, action: str, parameters: dict[str, Any]) -> ActionResult:
         question = parameters.get("question", parameters.get("text", ""))
@@ -33,14 +61,7 @@ class ChatSkill(BaseSkill):
         if not question:
             return self._result("answer_question", success=False, error="No question provided")
 
-        response = _try_llm([
-            {"role": "system", "content": (
-                "Sei JARVIS, un assistente italiano. "
-                "Rispondi ESCLUSIVAMENTE in italiano, mai in altre lingue. "
-                "Sii conciso, preciso e utile."
-            )},
-            {"role": "user", "content": question},
-        ])
+        response = _try_llm_with_tools(question)
         return self._result("answer_question", success=True, result=response)
 
     def _explain(self, question: str) -> ActionResult:
@@ -48,79 +69,132 @@ class ChatSkill(BaseSkill):
             return self._result("explain_concept", success=False, error="No question provided")
 
         prompt = f"Spiega il seguente concetto in italiano, in modo semplice e chiaro. Sii educativo ma conciso.\n\nConcetto: {question}"
-        response = _try_llm([
-            {"role": "system", "content": "Sei un insegnante paziente. Spiega i concetti in italiano, in 2-3 paragrafi chiari."},
-            {"role": "user", "content": prompt},
-        ])
+        response = _try_llm_with_tools(prompt)
         return self._result("explain_concept", success=True, result=response)
 
     def _summarize(self, text: str) -> ActionResult:
         if not text:
             return self._result("summarize_text", success=False, error="No text provided")
 
-        response = _try_llm([
-            {"role": "system", "content": "Riassumi il seguente testo in italiano, in 3-5 punti elenco. Sii conciso."},
-            {"role": "user", "content": text},
-        ])
+        prompt = f"Riassumi il seguente testo in italiano, in 3-5 punti elenco. Sii conciso.\n\n{text}"
+        response = _try_llm_with_tools(prompt)
         return self._result("summarize_text", success=True, result=response)
 
 
-def _try_llm(messages: list[dict[str, str]]) -> str:
-    """Try to use the LLM, fall back gracefully. Uses sync HTTP to avoid async issues on Windows."""
-    import json
+def _execute_tool(name: str, args: dict) -> str:
+    """Execute a tool and return result."""
+    if name == "web_search":
+        query = args.get("query", "")
+        if not query:
+            return "No query provided."
+        try:
+            from backend.skills.web_search.search_provider import search_web, format_results
+            results = search_web(query, max_results=5)
+            return format_results(query, results)
+        except Exception as exc:
+            return f"Search failed: {exc}"
+    elif name == "get_current_time":
+        now = datetime.now(timezone.utc)
+        return f"Current time: {now.strftime('%Y-%m-%d %H:%M:%S')} UTC"
+    return f"Unknown tool: {name}"
+
+
+def _try_llm_with_tools(user_message: str) -> str:
+    """Use Ollama with native tool calling. Model decides when to search."""
+    import requests
+
+    model = getattr(settings.llm, 'chat_model', 'qwen2.5:7b') or 'qwen2.5:7b'
+    ollama_url = (settings.llm.base_url or "http://localhost:11434").rstrip("/")
+
+    system_prompt = (
+        "Sei JARVIS, un assistente italiano. "
+        "Rispondi ESCLUSIVAMENTE in italiano. "
+        "Hai accesso a web_search (per dati aggiornati) e get_current_time. "
+        "Usa gli strumenti solo quando necessario. Sii conciso."
+    )
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_message},
+    ]
+
     try:
-        import requests
-        model = settings.llm.chat_model if hasattr(settings.llm, 'chat_model') else "mistral:7b"
+        for round_num in range(3):
+            r = requests.post(
+                f"{ollama_url}/api/chat",
+                json={
+                    "model": model,
+                    "messages": messages,
+                    "stream": False,
+                    "tools": _OLLAMA_TOOLS,
+                    "options": {"temperature": 0.5},
+                },
+                timeout=45,
+            )
+            if r.status_code != 200:
+                break
+
+            data = r.json()
+            msg = data.get("message", {})
+            content = msg.get("content", "")
+            tool_calls = msg.get("tool_calls", [])
+
+            if not tool_calls:
+                if content and len(content.strip()) > 5:
+                    return content
+                break
+
+            messages.append({
+                "role": "assistant",
+                "content": content or "",
+                "tool_calls": tool_calls,
+            })
+
+            for tc in tool_calls:
+                fn = tc.get("function", {})
+                tool_name = fn.get("name", "")
+                tool_args = fn.get("arguments", {})
+                if isinstance(tool_args, str):
+                    try:
+                        tool_args = json.loads(tool_args)
+                    except json.JSONDecodeError:
+                        tool_args = {}
+                tool_result = _execute_tool(tool_name, tool_args)
+                messages.append({"role": "tool", "content": tool_result})
+
+        # Final call without tools
         r = requests.post(
-            "http://localhost:11434/api/chat",
+            f"{ollama_url}/api/chat",
             json={
                 "model": model,
                 "messages": messages,
                 "stream": False,
                 "options": {"temperature": 0.5},
             },
-            timeout=30,
+            timeout=45,
         )
         if r.status_code == 200:
             return r.json().get("message", {}).get("content", "")
-    except Exception as exc:
-        logger.warning("Direct Ollama call failed: {}", exc)
 
-    # Try async gateway as fallback
-    try:
-        from backend.llm.gateway import llm_gateway
-        import asyncio
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            future = pool.submit(_run_async, llm_gateway.generate(messages))
-            return future.result(timeout=30)
     except Exception as exc:
-        logger.warning("LLM Gateway failed: {}", exc)
+        logger.warning("LLM with tools failed: {}", exc)
 
     return _fallback_response()
-
-
-def _run_async(coro):
-    """Run a coroutine in a new event loop (thread-safe)."""
-    import asyncio
-    return asyncio.run(coro)
 
 
 def _fallback_response() -> str:
     """Fallback when no LLM is available."""
     if not settings.llm.default_provider:
         return (
-            "I'm in offline mode — no LLM configured. "
-            "Set up Ollama or another provider in .env to enable smart chat.\n\n"
-            "In the meantime, try slash commands:\n"
-            "• /open <app> — Open an application\n"
-            "• /search <query> — Search the web\n"
-            "• /timer <duration> <message> — Set a timer\n"
-            "• /system stats — Show system stats\n"
-            "• /ask <question> — Ask a question"
+            "Sono in modalità offline — nessun LLM configurato. "
+            "Installa Ollama e un modello per abilitare la chat intelligente.\n\n"
+            "Prova i comandi slash:\n"
+            "• /open <app> — Apri un'applicazione\n"
+            "• /search <query> — Cerca sul web\n"
+            "• /timer <durata> <messaggio> — Imposta un timer\n"
+            "• /system stats — Statistiche di sistema"
         )
     return (
-        f"LLM provider '{settings.llm.default_provider}' is configured but not available. "
-        "Make sure the service is running.\n\n"
-        "Try slash commands: /open, /search, /timer, /system stats"
+        f"Il provider LLM '{settings.llm.default_provider}' non è disponibile. "
+        "Assicurati che Ollama sia in esecuzione."
     )

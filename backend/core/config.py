@@ -19,7 +19,7 @@ class LLMConfig(BaseSettings):
 
     default_provider: str = "ollama"
     default_model: str = "qwen2.5:7b"
-    chat_model: str = "mistral:7b"  # used for chat conversations (better at Italian)
+    chat_model: str = "qwen2.5:7b"  # supports native tool calling for web search
     base_url: str = "http://localhost:11434"
     api_key: str = ""
     router_model: str = "phi3:mini"

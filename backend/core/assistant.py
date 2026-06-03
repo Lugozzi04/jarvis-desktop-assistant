@@ -199,18 +199,14 @@ class AssistantOrchestrator:
     def _handle_chat(self, question: str) -> str:
         """Handle a general chat question.
         
-        NOTE: The actual Ollama call with full conversation history happens in
-        chat.py's _chat_with_context(). This method only handles the fallback
-        when no conversation context is available (e.g., /ask slash command).
-        It returns web search results for context-aware processing upstream.
+        NOTE: The actual LLM call with tool calling + history happens in
+        chat.py's _chat_with_tools(). This method only handles fallback
+        when no conversation context is available.
         """
         if not question:
             return "How can I help you?"
 
-        # Try web search for real-time data
-        web_context = self._try_web_search(question)
-
-        # Try ChatSkill via registry
+        # Try ChatSkill (which now uses tool calling)
         try:
             result = skill_registry.execute("chat", "answer_question", {"question": question})
             if result and result.success:
@@ -218,11 +214,7 @@ class AssistantOrchestrator:
         except Exception:
             pass
 
-        # Return web results if available (upstream will use them as context)
-        if web_context:
-            return web_context
-
-        # Ultimate fallback
+        # Fallback
         return (
             "I'm in offline mode — no LLM provider is available. "
             "For smart chat, install Ollama and run: ollama pull qwen2.5:7b\n\n"
@@ -233,26 +225,6 @@ class AssistantOrchestrator:
             "• /system stats — Show system stats\n"
             "• /ask question — Ask a question via LLM"
         )
-
-    def _try_web_search(self, question: str) -> str:
-        """Try to get real-time web search results for the question.
-        
-        ALWAYS searches the web for every chat question — Ollama has no internet access.
-        Returns formatted search results string, or empty string if failed.
-        Uses ddgs (DuckDuckGo HTML endpoint).
-        """
-        from backend.core.logger import logger
-        from backend.skills.web_search.search_provider import search_web, format_results
-        
-        try:
-            logger.info("Web search for: {}", question[:80])
-            results = search_web(question, max_results=5)
-            if results:
-                return format_results(question, results)
-        except Exception as exc:
-            logger.debug("Web search unavailable: {}", exc)
-        
-        return ""
 
     def _format_result(self, result: ActionResult) -> str:
         """Format an ActionResult into a user-friendly message."""
