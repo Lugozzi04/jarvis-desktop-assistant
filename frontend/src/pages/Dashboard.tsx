@@ -238,6 +238,11 @@ function Dashboard() {
               {health.llm.error}
             </div>
           )}
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.5 }}>
+            💡 Per l'italiano installa <b>mistral:7b</b>:<br/>
+            <code style={{ fontSize: '0.65rem', background: 'var(--bg-tertiary)', padding: '2px 4px', borderRadius: 4 }}>ollama pull mistral:7b</code><br/>
+            Poi imposta <code style={{ fontSize: '0.65rem', background: 'var(--bg-tertiary)', padding: '2px 4px', borderRadius: 4 }}>LLM_CHAT_MODEL=mistral:7b</code> in .env
+          </div>
         </StatusCard>
 
         {/* Document Memory */}
