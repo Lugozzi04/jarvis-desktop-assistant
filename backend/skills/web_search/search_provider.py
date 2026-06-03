@@ -1,29 +1,21 @@
-"""Web search provider — Google + SearXNG (NO DuckDuckGo).
+"""Web search provider — DuckDuckGo HTML/lite (via ddgs), NO api.duckduckgo.com.
+
+Uses the `ddgs` Python library which queries DuckDuckGo's HTML/lite endpoint.
+This is NOT the official JSON API — it's the same endpoint a browser uses.
+No API key needed. Works reliably from any IP.
 
 Priority:
-  1. SearXNG public instances (JSON API, aggregates Google/Bing/etc.)
-  2. Direct Google HTML scraping (fallback)
-
-No API keys needed. No DuckDuckGo.
+  1. ddgs (DuckDuckGo HTML) — fast, reliable, no blocks
+  2. Google HTML scraping — fallback, may trigger CAPTCHA
 """
 
 from __future__ import annotations
 
 import re
-import time
 from typing import Any
-from urllib.parse import quote_plus
 
 import httpx
 from backend.core.logger import logger
-
-# ── SearXNG public instances ──
-SEARX_INSTANCES = [
-    "https://searx.be",
-    "https://search.sapti.me",
-    "https://searx.tiekoetter.com",
-    "https://searx.fmac.xyz",
-]
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -34,17 +26,25 @@ USER_AGENT = (
 
 def search_web(query: str, max_results: int = 5) -> list[dict[str, str]]:
     """Search the web. Returns list of {title, url, snippet}."""
-    
-    # ── 1. Try SearXNG ──
-    for instance in SEARX_INSTANCES:
-        try:
-            results = _searx_search(instance, query, max_results)
+
+    # ── 1. Primary: ddgs (DuckDuckGo HTML endpoint) ──
+    try:
+        from ddgs import DDGS
+        with DDGS() as ddgs:
+            results = []
+            for r in ddgs.text(query, max_results=max_results):
+                results.append({
+                    "title": r.get("title", ""),
+                    "url": r.get("href", ""),
+                    "snippet": r.get("body", ""),
+                })
             if results:
-                logger.info("SearXNG returned {} results from {}", len(results), instance)
+                logger.info("ddgs returned {} results", len(results))
                 return results
-        except Exception as exc:
-            logger.debug("SearXNG {} failed: {}", instance, exc)
-            continue
+    except ImportError:
+        logger.debug("ddgs not installed — falling back to Google")
+    except Exception as exc:
+        logger.warning("ddgs search failed: {}", exc)
 
     # ── 2. Fallback: Google HTML scraping ──
     try:
@@ -58,35 +58,12 @@ def search_web(query: str, max_results: int = 5) -> list[dict[str, str]]:
     return []
 
 
-def _searx_search(instance: str, query: str, max_results: int) -> list[dict[str, str]]:
-    """Query a SearXNG instance's JSON API."""
-    url = f"{instance}/search"
-    params = {
-        "q": query,
-        "format": "json",
-        "categories": "general",
-        "language": "auto",
-    }
-    
-    with httpx.Client(timeout=8.0) as client:
-        r = client.get(url, params=params, headers={"User-Agent": USER_AGENT})
-        r.raise_for_status()
-        data = r.json()
-    
-    results = []
-    for item in data.get("results", [])[:max_results]:
-        results.append({
-            "title": item.get("title", ""),
-            "url": item.get("url", ""),
-            "snippet": _clean_html(item.get("content", "")),
-        })
-    return results
-
-
 def _google_scrape(query: str, max_results: int) -> list[dict[str, str]]:
     """Scrape Google search results HTML."""
-    url = f"https://www.google.com/search?q={quote_plus(query)}&hl=en"
+    from urllib.parse import quote_plus
     
+    url = f"https://www.google.com/search?q={quote_plus(query)}&hl=en"
+
     with httpx.Client(timeout=10.0) as client:
         r = client.get(
             url,
@@ -98,45 +75,37 @@ def _google_scrape(query: str, max_results: int) -> list[dict[str, str]]:
         )
         r.raise_for_status()
         html = r.text
-    
+
     results = []
-    # Extract results using regex patterns for Google's HTML structure
-    # Pattern: <a href="/url?q=REAL_URL" ...><h3>TITLE</h3></a> ... snippet
-    
-    # Find all result blocks
     blocks = re.split(r'<div class="[^"]*g[^"]*"[^>]*>', html)
-    
+
     for block in blocks[1:]:
         if len(results) >= max_results:
             break
-            
-        # Extract URL from href
+
         url_match = re.search(r'href="/url\?q=([^"&]+)', block)
-        # Extract title from h3
         title_match = re.search(r'<h3[^>]*>(.*?)</h3>', block, re.DOTALL)
-        # Extract snippet
         snippet_match = re.search(
             r'<div[^>]*class="[^"]*(?:BNeawe|VwiC3b|IsZvec)[^"]*"[^>]*>(.*?)</div>',
             block, re.DOTALL
         )
-        # Fallback snippet pattern
         if not snippet_match:
             snippet_match = re.search(
                 r'<span[^>]*class="[^"]*aCOpRe[^"]*"[^>]*>(.*?)</span>',
                 block, re.DOTALL
             )
-        
+
         url_val = url_match.group(1) if url_match else ""
         title_val = _clean_html(title_match.group(1)) if title_match else ""
         snippet_val = _clean_html(snippet_match.group(1)) if snippet_match else ""
-        
+
         if title_val and url_val and "google.com" not in url_val:
             results.append({
                 "title": title_val,
                 "url": url_val,
                 "snippet": snippet_val[:300],
             })
-    
+
     return results
 
 
@@ -152,7 +121,7 @@ def format_results(query: str, results: list[dict[str, str]]) -> str:
     """Format search results for display or LLM context."""
     if not results:
         return f"No results found for: {query}"
-    
+
     lines = [f"🔍 Web results for: {query}", ""]
     for i, r in enumerate(results, 1):
         lines.append(f"{i}. **{r['title']}**")
@@ -160,5 +129,5 @@ def format_results(query: str, results: list[dict[str, str]]) -> str:
             lines.append(f"   {r['snippet'][:200]}")
         lines.append(f"   {r['url']}")
         lines.append("")
-    
+
     return "\n".join(lines)
