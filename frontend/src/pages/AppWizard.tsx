@@ -2,16 +2,6 @@ import { useState, useEffect } from 'react';
 
 const API = 'http://localhost:8400';
 
-interface DetectedApp {
-  name: string;
-  command: string;
-  path: string;
-  category: string;
-  aliases: string[];
-  builtin: boolean;
-  detected: boolean;
-}
-
 interface ConfiguredApp {
   name: string;
   command: string;
