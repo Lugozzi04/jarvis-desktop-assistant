@@ -57,26 +57,43 @@ class AppSkill(BaseSkill):
             if char in app_name:
                 return self._result("open", success=False, error="Invalid characters in app name.")
 
-        if len(app_name) > 100:
+        if len(app_name) > 200:
             return self._result("open", success=False, error="App name too long")
 
-        app_name_lower = app_name.lower()
+        # ── Support multiple apps: /open discord, spotify ──
+        # Split by comma, " and ", " e ", " y "
+        import re
+        parts = re.split(r'\s*,\s*|\s+and\s+|\s+e\s+|\s+y\s+', app_name)
+        parts = [p.strip().lower() for p in parts if p.strip()]
+        
+        if len(parts) > 1:
+            results = []
+            for part in parts:
+                r = self._open_single(part)
+                results.append(r.result if r.success else f"❌ {r.error}")
+            return self._result("open", success=True, result="\n".join(results))
+        
+        return self._open_single(app_name.lower().strip())
+
+    def _open_single(self, app_name_lower: str) -> ActionResult:
+        display_name = app_name_lower  # for error messages
 
         # 1️⃣ Try config store first (user-configured via Setup Wizard — has real paths)
         app_config = self._resolve_from_store(app_name_lower)
         if app_config and app_config.get("enabled", True):
             command = app_config.get("command", app_name_lower)
-            return self._launch(app_name, command)
+            display_name = app_config.get("name", app_name_lower)
+            return self._launch(display_name, command)
 
         # 2️⃣ Fall back to built-in defaults
         app_config = self._resolve_fallback(app_name_lower)
         if app_config:
-            return self._launch(app_name, app_config.get("command", app_name_lower))
+            return self._launch(display_name, app_config.get("command", app_name_lower))
 
         # 3️⃣ Not found
         available = self._get_available_apps()
         return self._result("open", success=False, error=(
-            f"Unknown app: '{app_name}'. Run the App Setup Wizard to detect installed apps!\n\n"
+            f"Unknown app: '{display_name}'. Run the App Setup Wizard to detect installed apps!\n\n"
             f"Currently available: {', '.join(available[:10])}"
             + ("..." if len(available) > 10 else "")
         ))

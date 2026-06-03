@@ -132,6 +132,28 @@ function AppWizard() {
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             className="btn btn-primary"
+            onClick={() => {
+              const enabledApps = configured.filter(a => a.enabled);
+              if (enabledApps.length === 0) { setMessage('No apps enabled'); return; }
+              setMessage(`🚀 Launching ${enabledApps.length} apps...`);
+              // Open each app via API
+              enabledApps.forEach(async (app) => {
+                try {
+                  await fetch(`${API}/api/command`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command: `/open ${app.name}` }),
+                  });
+                } catch {}
+              });
+              setTimeout(() => setMessage(`✅ Launched ${enabledApps.length} apps`), 1000);
+            }}
+            style={{ background: '#10b981', border: 'none' }}
+          >
+            🚀 Run All ({enabledCount})
+          </button>
+          <button
+            className="btn btn-primary"
             onClick={handleScan}
             disabled={scanning}
           >
@@ -254,6 +276,24 @@ function AppWizard() {
                     ✏️ Edit Path
                   </button>
                 )}
+                {/* Run button */}
+                <button
+                  className="btn btn-sm"
+                  style={{ fontSize: '0.75rem', padding: '2px 10px', background: '#10b981', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    try {
+                      await fetch(`${API}/api/command`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ command: `/open ${app.name}` }),
+                      });
+                      setMessage(`✅ Opened ${app.name}`);
+                    } catch { setMessage(`❌ Failed to open ${app.name}`); }
+                  }}
+                >
+                  ▶ Run
+                </button>
                 {!app.builtin && (
                   <button
                     className="btn btn-sm btn-danger"

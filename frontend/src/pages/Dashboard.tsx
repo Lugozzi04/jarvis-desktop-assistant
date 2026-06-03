@@ -42,6 +42,7 @@ function Dashboard() {
   const [health, setHealth] = useState<HealthFullResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [splash, setSplash] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -54,6 +55,9 @@ function Dashboard() {
         setError(err.message || 'Failed to connect to backend');
         setLoading(false);
       });
+    // Auto-dismiss splash after 2.5s
+    const timer = setTimeout(() => setSplash(false), 2500);
+    return () => clearTimeout(timer);
   }, []);
 
   const quickActions = [
@@ -101,6 +105,47 @@ function Dashboard() {
 
   return (
     <div>
+      {/* ── Splash Screen ── */}
+      {splash && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          zIndex: 99999, background: 'var(--bg-primary)',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          animation: 'fadeOut 0.6s ease-out 1.9s forwards',
+        }}>
+          <div style={{
+            fontSize: '3rem', marginBottom: 16,
+            animation: 'pulseSplash 1s ease-in-out infinite',
+          }}>⚡</div>
+          <div style={{
+            fontSize: '1.6rem', fontWeight: 700,
+            color: 'var(--accent, #6366f1)',
+            marginBottom: 8,
+            animation: 'slideUp 0.5s ease-out',
+          }}>JARVIS</div>
+          <div style={{
+            fontSize: '0.95rem', color: 'var(--text-muted)',
+            animation: 'slideUp 0.5s ease-out 0.2s both',
+          }}>Waking up...</div>
+          <div style={{
+            marginTop: 24, width: 120, height: 3,
+            background: 'var(--bg-tertiary)', borderRadius: 2, overflow: 'hidden',
+          }}>
+            <div style={{
+              width: '100%', height: '100%',
+              background: 'var(--accent, #6366f1)',
+              animation: 'loadingBar 2s ease-in-out',
+            }} />
+          </div>
+        </div>
+      )}
+      <style>{`
+        @keyframes fadeOut { to { opacity: 0; pointer-events: none; } }
+        @keyframes pulseSplash { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.2); opacity: 0.6; } }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes loadingBar { from { width: 0%; } to { width: 100%; } }
+      `}</style>
       <h2 style={{ marginBottom: 20, fontSize: '1.5rem' }}>Dashboard</h2>
 
       {/* Status Cards */}
