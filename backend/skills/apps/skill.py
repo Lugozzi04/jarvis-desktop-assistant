@@ -103,6 +103,7 @@ class AppSkill(BaseSkill):
 
         On Windows:
         - Full paths (C:\\...\\app.exe) → subprocess.Popen directly
+        - Full folder paths → find .exe inside, launch that
         - Bare names (discord, code) → try shutil.which first, then 'start'
         - 'start xxx' commands → shell=True as-is
         """
@@ -117,11 +118,11 @@ class AppSkill(BaseSkill):
                 return self._result("open", success=True, result=f"Opened {name}")
 
             if system == "Windows":
-                # Is it a full path to an executable?
+                # Is it a full path?
                 if "\\" in command or "/" in command:
                     path = Path(command)
                     if path.is_file():
-                        # Direct launch of an .exe — no 'start' needed
+                        # Direct launch of an .exe
                         subprocess.Popen(
                             [str(path)],
                             stdout=subprocess.DEVNULL,
@@ -130,7 +131,17 @@ class AppSkill(BaseSkill):
                         )
                         return self._result("open", success=True, result=f"Opened {name}")
                     elif path.is_dir():
-                        # It's a folder — open in Explorer
+                        # It's a folder — search for matching .exe inside
+                        exe_path = self._find_exe_in_folder(path, name)
+                        if exe_path:
+                            subprocess.Popen(
+                                [str(exe_path)],
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL,
+                                cwd=str(exe_path.parent),
+                            )
+                            return self._result("open", success=True, result=f"Opened {name}")
+                        # No .exe found — open folder as fallback
                         os.startfile(str(path))
                         return self._result("open", success=True, result=f"Opened {name} folder")
                     else:
@@ -192,6 +203,41 @@ class AppSkill(BaseSkill):
         except Exception as exc:
             logger.error("Launch failed for {}: {}", name, exc)
             return self._result("open", success=False, error=str(exc))
+
+    def _find_exe_in_folder(self, folder: Path, app_name: str) -> Path | None:
+        """Find the main executable in a folder. Returns Path or None."""
+        try:
+            import re
+            name_clean = app_name.lower().replace(" ", "").replace("-", "")
+
+            # Priority 1: exact name match (e.g., Discord/Discord.exe)
+            candidates = sorted(folder.glob("*.exe"))
+            for exe in candidates:
+                stem = exe.stem.lower().replace(" ", "").replace("-", "")
+                if stem == name_clean:
+                    return exe
+
+            # Priority 2: starts with name (e.g., Discord/DiscordSetup.exe)
+            for exe in candidates:
+                stem = exe.stem.lower().replace(" ", "").replace("-", "")
+                if stem.startswith(name_clean[:4]):
+                    return exe
+
+            # Priority 3: name contains (e.g., Update.exe is not it)
+            for exe in candidates:
+                stem = exe.stem.lower().replace(" ", "").replace("-", "")
+                if name_clean[:3] in stem and "uninstall" not in stem and "update" not in stem:
+                    return exe
+
+            # Priority 4: largest .exe (usually the main one, not uninstaller)
+            if candidates:
+                largest = max(candidates, key=lambda p: p.stat().st_size)
+                return largest
+
+        except Exception:
+            pass
+
+        return None
 
     def _close_app(self, app_name: str) -> ActionResult:
         if not app_name:

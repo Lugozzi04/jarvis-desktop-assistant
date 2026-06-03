@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter
@@ -20,6 +22,45 @@ class LLMTestRequest(BaseModel):
     model: str = ""
 
 
+class LanguageUpdate(BaseModel):
+    language: str  # "it" or "en"
+
+
+# ── Language storage ──
+
+def _get_language_path() -> Path:
+    return settings.data_path / "language.json"
+
+
+def get_language() -> str:
+    """Read language preference. Default: 'it' (Italian)."""
+    try:
+        p = _get_language_path()
+        if p.exists():
+            data = json.loads(p.read_text())
+            return data.get("language", "it")
+    except Exception:
+        pass
+    return "it"
+
+
+def set_language(lang: str) -> str:
+    """Save language preference. Returns the saved language."""
+    lang = lang.lower()
+    if lang not in ("it", "en"):
+        lang = "it"
+    try:
+        p = _get_language_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps({"language": lang}))
+    except Exception as exc:
+        logger.error("Failed to save language: {}", exc)
+    return lang
+
+
+# ── API routes ──
+
+
 @router.get("/settings")
 def get_settings():
     """Get current configuration (safe, no secrets)."""
@@ -28,6 +69,7 @@ def get_settings():
         "log_level": settings.log_level,
         "ui_host": settings.ui_host,
         "ui_port": settings.ui_port,
+        "language": get_language(),
         "llm": {
             "default_provider": settings.llm.default_provider,
             "default_model": settings.llm.default_model,
@@ -49,6 +91,13 @@ def get_settings():
 def update_settings(updates: dict[str, Any]):
     """Update settings (placeholder — persistent settings coming)."""
     return {"status": "received", "updates": updates, "note": "Settings persistence coming soon"}
+
+
+@router.put("/settings/language")
+def update_language_api(data: LanguageUpdate):
+    """Update language setting ('it' or 'en')."""
+    lang = set_language(data.language)
+    return {"language": lang, "success": True}
 
 
 @router.post("/settings/llm/test")

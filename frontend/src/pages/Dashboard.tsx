@@ -43,6 +43,8 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [splash, setSplash] = useState(true);
+  const [language, setLanguage] = useState<string>('it');
+  const [langSaving, setLangSaving] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -59,6 +61,27 @@ function Dashboard() {
     const timer = setTimeout(() => setSplash(false), 2500);
     return () => clearTimeout(timer);
   }, []);
+
+  // Fetch language
+  useEffect(() => {
+    fetch('http://localhost:8400/api/settings/language')
+      .then(r => r.json())
+      .then(d => setLanguage(d.language || 'it'))
+      .catch(() => {});
+  }, []);
+
+  const handleLanguageChange = async (lang: string) => {
+    setLanguage(lang);
+    setLangSaving(true);
+    try {
+      await fetch('http://localhost:8400/api/settings/language', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language: lang }),
+      });
+    } catch {}
+    setLangSaving(false);
+  };
 
   const quickActions = [
     { label: '/open discord', icon: '🎮' },
@@ -147,6 +170,36 @@ function Dashboard() {
         @keyframes loadingBar { from { width: 0%; } to { width: 100%; } }
       `}</style>
       <h2 style={{ marginBottom: 20, fontSize: '1.5rem' }}>Dashboard</h2>
+
+      {/* Language Selector */}
+      <div style={{
+        marginBottom: 20, padding: '10px 14px',
+        background: 'var(--bg-secondary)', borderRadius: 10,
+        border: '1px solid var(--border)',
+        display: 'flex', alignItems: 'center', gap: 10,
+      }}>
+        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+          🌐 Lingua / Language:
+        </span>
+        <select
+          value={language}
+          onChange={(e) => handleLanguageChange(e.target.value)}
+          disabled={langSaving}
+          style={{
+            padding: '6px 12px', borderRadius: 8,
+            border: '1px solid var(--accent)',
+            background: 'var(--bg-primary)',
+            color: 'var(--text-primary)',
+            fontSize: '0.85rem',
+            cursor: 'pointer',
+            outline: 'none',
+          }}
+        >
+          <option value="it">🇮🇹 Italiano</option>
+          <option value="en">🇬🇧 English</option>
+        </select>
+        {langSaving && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Salvando...</span>}
+      </div>
 
       {/* Status Cards */}
       <div className="card-grid">

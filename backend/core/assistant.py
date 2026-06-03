@@ -204,12 +204,26 @@ class AssistantOrchestrator:
         # Detect if question needs real-time data (exchange rates, weather, etc.)
         web_context = self._try_web_search(question)
 
+        # Read language preference
+        try:
+            from backend.api.settings import get_language
+            lang = get_language()
+        except Exception:
+            lang = "it"
+
         # Build system prompt with web context if available
-        system_prompt = (
-            "You are JARVIS, a helpful desktop assistant. Respond concisely in the user's language. "
-            "If web search results are provided below, use them to give accurate, up-to-date answers. "
-            "Always cite sources when using web data."
-        )
+        if lang == "it":
+            system_prompt = (
+                "Sei JARVIS, un assistente desktop italiano. Rispondi SEMPRE in italiano, "
+                "in modo conciso e utile. Se ti vengono forniti risultati di ricerca web, "
+                "usali per dare risposte accurate e aggiornate. Cita le fonti quando usi dati dal web."
+            )
+        else:
+            system_prompt = (
+                "You are JARVIS, a helpful desktop assistant. Respond concisely in English. "
+                "If web search results are provided below, use them to give accurate, up-to-date answers. "
+                "Always cite sources when using web data."
+            )
         user_prompt = question
         if web_context:
             user_prompt = f"Web search results for context:\n{web_context}\n\nUser question: {question}"
@@ -261,21 +275,12 @@ class AssistantOrchestrator:
     def _try_web_search(self, question: str) -> str:
         """Try to get real-time web search results for the question.
         
-        Returns formatted search results string, or empty string if not applicable/failed.
-        Uses Google + SearXNG — NO DuckDuckGo.
+        ALWAYS searches the web for every chat question — Ollama has no internet access.
+        Returns formatted search results string, or empty string if failed.
+        Uses ddgs (DuckDuckGo HTML endpoint).
         """
         from backend.core.logger import logger
         from backend.skills.web_search.search_provider import search_web, format_results
-        
-        # Always attempt a web search for chat questions — Ollama has no web access.
-        # Skip only for clearly offline/local questions.
-        skip_patterns = [
-            "how are you", "what is your name", "who are you",
-            "what can you do", "help", "hello", "hi ", "hey ",
-        ]
-        question_lower = question.lower().strip()
-        if any(question_lower.startswith(p) for p in skip_patterns) and len(question_lower) < 30:
-            return ""
         
         try:
             logger.info("Web search for: {}", question[:80])
