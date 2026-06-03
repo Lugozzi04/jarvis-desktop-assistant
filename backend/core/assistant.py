@@ -197,60 +197,18 @@ class AssistantOrchestrator:
             return f"❌ Workflow engine error: {exc}"
 
     def _handle_chat(self, question: str) -> str:
-        """Handle a general chat question. Uses sync Ollama call first (no async issues on Windows)."""
+        """Handle a general chat question.
+        
+        NOTE: The actual Ollama call with full conversation history happens in
+        chat.py's _chat_with_context(). This method only handles the fallback
+        when no conversation context is available (e.g., /ask slash command).
+        It returns web search results for context-aware processing upstream.
+        """
         if not question:
             return "How can I help you?"
 
-        # Detect if question needs real-time data (exchange rates, weather, etc.)
+        # Try web search for real-time data
         web_context = self._try_web_search(question)
-
-        # Read language preference
-        try:
-            from backend.api.settings import get_language
-            lang = get_language()
-        except Exception:
-            lang = "it"
-
-        # Build system prompt with web context if available
-        if lang == "it":
-            system_prompt = (
-                "Sei JARVIS, un assistente desktop italiano. Rispondi SEMPRE in italiano, "
-                "in modo conciso e utile. Se ti vengono forniti risultati di ricerca web, "
-                "usali per dare risposte accurate e aggiornate. Cita le fonti quando usi dati dal web."
-            )
-        else:
-            system_prompt = (
-                "You are JARVIS, a helpful desktop assistant. Respond concisely in English. "
-                "If web search results are provided below, use them to give accurate, up-to-date answers. "
-                "Always cite sources when using web data."
-            )
-        user_prompt = question
-        if web_context:
-            user_prompt = f"Web search results for context:\n{web_context}\n\nUser question: {question}"
-
-        # Direct sync call to Ollama (bypasses async event loop issues)
-        try:
-            import requests
-            r = requests.post(
-                "http://localhost:11434/api/chat",
-                json={
-                    "model": "qwen2.5:7b",
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    "stream": False,
-                },
-                timeout=30,
-            )
-            if r.status_code == 200:
-                return r.json().get("message", {}).get("content", "")
-        except Exception:
-            pass
-
-        # If web search gave results but Ollama is down, return web results directly
-        if web_context:
-            return f"🌐 Web search results:\n\n{web_context}\n\n_Install Ollama (ollama pull qwen2.5:7b) for AI-powered answers._"
 
         # Try ChatSkill via registry
         try:
@@ -259,6 +217,10 @@ class AssistantOrchestrator:
                 return result.result or "I processed your request."
         except Exception:
             pass
+
+        # Return web results if available (upstream will use them as context)
+        if web_context:
+            return web_context
 
         # Ultimate fallback
         return (
