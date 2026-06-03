@@ -227,15 +227,15 @@ export const api = {
   health: () => fetchAPI<HealthStatus>('/health'),
   healthFull: () => fetchAPI<HealthFullResponse>('/api/health/full'),
   pendingActionsCount: () => fetchAPI<PendingCountResponse>('/api/pending-actions/count'),
-  chat: (message: string) =>
+  chat: (message: string, sessionId?: string) =>
     fetchAPI<ChatResponse>('/api/chat', {
       method: 'POST',
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, session_id: sessionId || 'default' }),
     }),
-  command: (command: string) =>
+  command: (command: string, sessionId?: string) =>
     fetchAPI<ChatResponse>('/api/command', {
       method: 'POST',
-      body: JSON.stringify({ command }),
+      body: JSON.stringify({ command, session_id: sessionId || 'default' }),
     }),
   skills: () => fetchAPI<{ skills: SkillInfo[] }>('/api/skills'),
   skillDetail: (name: string) => fetchAPI<SkillDetail>(`/api/skills/${name}`),

@@ -201,6 +201,19 @@ class AssistantOrchestrator:
         if not question:
             return "How can I help you?"
 
+        # Detect if question needs real-time data (exchange rates, weather, etc.)
+        web_context = self._try_web_search(question)
+
+        # Build system prompt with web context if available
+        system_prompt = (
+            "You are JARVIS, a helpful desktop assistant. Respond concisely in the user's language. "
+            "If web search results are provided below, use them to give accurate, up-to-date answers. "
+            "Always cite sources when using web data."
+        )
+        user_prompt = question
+        if web_context:
+            user_prompt = f"Web search results for context:\n{web_context}\n\nUser question: {question}"
+
         # Direct sync call to Ollama (bypasses async event loop issues)
         try:
             import requests
@@ -209,8 +222,8 @@ class AssistantOrchestrator:
                 json={
                     "model": "qwen2.5:7b",
                     "messages": [
-                        {"role": "system", "content": "You are JARVIS, a helpful desktop assistant. Respond concisely in the user's language."},
-                        {"role": "user", "content": question},
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
                     ],
                     "stream": False,
                 },
@@ -220,6 +233,10 @@ class AssistantOrchestrator:
                 return r.json().get("message", {}).get("content", "")
         except Exception:
             pass
+
+        # If web search gave results but Ollama is down, return web results directly
+        if web_context:
+            return f"🌐 Web search results:\n\n{web_context}\n\n_Install Ollama (ollama pull qwen2.5:7b) for AI-powered answers._"
 
         # Try ChatSkill via registry
         try:
@@ -240,6 +257,70 @@ class AssistantOrchestrator:
             "• /system stats — Show system stats\n"
             "• /ask question — Ask a question via LLM"
         )
+
+    def _try_web_search(self, question: str) -> str:
+        """Try to get real-time web search results for the question.
+        
+        Returns formatted search results string, or empty string if not applicable/failed.
+        """
+        # Keywords that indicate need for real-time data
+        realtime_keywords = [
+            "prezzo", "price", "tasso", "rate", "cambio", "exchange",
+            "dollaro", "euro", "bitcoin", "btc", "eth", "stock", "azioni",
+            "meteo", "weather", "tempo", "temperature",
+            "oggi", "today", "adesso", "now", "attuale", "current",
+            "notizie", "news", "ultim'ora",
+        ]
+        
+        question_lower = question.lower()
+        needs_realtime = any(kw in question_lower for kw in realtime_keywords)
+        
+        if not needs_realtime:
+            return ""
+        
+        try:
+            import requests as req
+            from backend.core.logger import logger
+            
+            logger.info("Attempting web search for real-time data: {}", question[:80])
+            
+            # Use DuckDuckGo Instant Answer API (free, no API key)
+            r = req.get(
+                "https://api.duckduckgo.com/",
+                params={
+                    "q": question,
+                    "format": "json",
+                    "no_html": 1,
+                    "skip_disambig": 1,
+                },
+                timeout=10,
+            )
+            if r.status_code != 200:
+                return ""
+            
+            data = r.json()
+            parts = []
+            
+            # Abstract (instant answer)
+            if data.get("AbstractText"):
+                parts.append(data["AbstractText"])
+                if data.get("AbstractSource"):
+                    parts.append(f"Source: {data['AbstractSource']}")
+            
+            # Related topics
+            topics = data.get("RelatedTopics", [])
+            if topics:
+                parts.append("\nRelated results:")
+                for t in topics[:3]:
+                    if isinstance(t, dict) and t.get("Text"):
+                        parts.append(f"• {t['Text']}")
+            
+            if parts:
+                return "\n".join(parts)
+        except Exception:
+            pass
+        
+        return ""
 
     def _format_result(self, result: ActionResult) -> str:
         """Format an ActionResult into a user-friendly message."""

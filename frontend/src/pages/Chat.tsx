@@ -216,7 +216,7 @@ function Chat() {
 
     try {
       const isSlash = msg.startsWith('/');
-      const res = isSlash ? await api.command(msg) : await api.chat(msg);
+      const res = isSlash ? await api.command(msg, cid || undefined) : await api.chat(msg, cid || undefined);
       addMessage('assistant', formatResult(res));
       if (res.intent) {
         const intentInfo = `Intent: ${res.intent.kind} → ${res.intent.skill || '?'}.${res.intent.action || '?'} (${(res.intent.confidence * 100).toFixed(0)}%)`;
@@ -351,7 +351,15 @@ function Chat() {
       )}
 
       {/* Main Chat Area */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        minWidth: 0,
+        border: convId ? '2px solid var(--accent, #6366f1)' : '2px dashed #f59e0b',
+        borderRadius: 4,
+        transition: 'border 0.3s',
+      }}>
         {/* Messages */}
         <div style={{
           flex: 1,
