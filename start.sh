@@ -13,18 +13,19 @@ echo -e "\033[36m╚════════════════════
 echo ""
 
 # ── Step 1: Git pull ──
-echo -e "\033[33m[1/4] Updating code...\033[0m"
+echo -e "\033[33m[1/5] Updating code...\033[0m"
 if [ -d ".git" ]; then
-    git stash push -m "auto-stash by start.sh" 2>/dev/null || true
-    git pull --ff-only 2>/dev/null || true
-    git stash pop 2>/dev/null || true
+    git fetch origin 2>/dev/null
+    git checkout main 2>/dev/null || true
+    git reset --hard origin/main 2>/dev/null
+    git clean -fd 2>/dev/null || true
     echo -e "   \033[32m✅ Code up to date\033[0m"
 else
     echo -e "   \033[33m⚠️  Not a git repo — skipping pull\033[0m"
 fi
 
 # ── Step 2: Check Python ──
-echo -e "\033[33m[2/4] Checking Python...\033[0m"
+echo -e "\033[33m[2/5] Checking Python...\033[0m"
 if command -v python3 &>/dev/null; then
     PY=python3
 elif command -v python &>/dev/null; then
@@ -36,7 +37,7 @@ fi
 echo -e "   \033[32m✅ $PY\033[0m"
 
 # ── Step 3: Setup venv + deps ──
-echo -e "\033[33m[3/4] Installing dependencies...\033[0m"
+echo -e "\033[33m[3/5] Installing dependencies...\033[0m"
 if [ ! -d ".venv" ]; then
     $PY -m venv .venv
 fi
@@ -44,8 +45,29 @@ fi
 .venv/bin/pip install -q -r requirements.txt
 echo -e "   \033[32m✅ Dependencies up to date\033[0m"
 
-# ── Step 4: Launch Desktop App ──
-echo -e "\033[33m[4/4] Launching Jarvis...\033[0m"
+# ── Step 4: Build Frontend ──
+echo -e "\033[33m[4/5] Building frontend...\033[0m"
+if command -v npm &>/dev/null; then
+    if [ -f "frontend/package.json" ]; then
+        # Install frontend deps if needed
+        if [ ! -d "frontend/node_modules" ]; then
+            echo "   📦 Installing frontend deps..."
+            (cd frontend && npm install --silent)
+        fi
+        # Build
+        (cd frontend && npm run build) && echo -e "   \033[32m✅ Frontend built\033[0m" || echo -e "   \033[33m⚠️  Build failed — using existing build\033[0m"
+    else
+        echo -e "   \033[33m⚠️  No frontend/package.json\033[0m"
+    fi
+else
+    echo -e "   \033[33m⚠️  npm not found — skipping build\033[0m"
+    if [ ! -f "frontend/dist/index.html" ]; then
+        echo -e "   \033[31m❌ No pre-built frontend. Install Node.js.\033[0m"
+    fi
+fi
+
+# ── Step 5: Launch Desktop App ──
+echo -e "\033[33m[5/5] Launching Jarvis...\033[0m"
 echo -e "   🖥️  Opening native window — close it to exit."
 
 # Check Ollama
@@ -53,6 +75,14 @@ if curl -s http://localhost:11434/api/tags &>/dev/null; then
     echo -e "   \033[32m🤖 Ollama connected\033[0m"
 else
     echo -e "   \033[33m💡 Run: ollama pull qwen2.5:7b  (for LLM chat)\033[0m"
+fi
+
+# Check Voice
+echo -e "   🎤 Checking voice..."
+if .venv/bin/python -c "import faster_whisper; print('ok')" 2>/dev/null | grep -q ok; then
+    echo -e "   \033[32m🎤 faster-whisper ready — speech-to-text enabled\033[0m"
+else
+    echo -e "   \033[33m💡 Voice STT not available (auto-installed next run)\033[0m"
 fi
 
 echo ""

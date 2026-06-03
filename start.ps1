@@ -2,7 +2,7 @@
 # Run: .\start.ps1
 # NO npm, NO Electron, NO browser. Just Python + native webview.
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 Set-Location $PSScriptRoot
 
 Write-Host ""
@@ -11,26 +11,21 @@ Write-Host "║  JARVIS Desktop Assistant v0.3.0    ║" -ForegroundColor Cyan
 Write-Host "╚══════════════════════════════════════╝" -ForegroundColor Cyan
 Write-Host ""
 
-# ── Step 1: Git pull (auto-stash local changes) ──
-Write-Host "[1/4] Updating code..." -ForegroundColor Yellow
-$stashed = $false
+# ── Step 1: Git pull (force-update to latest) ──
+Write-Host "[1/5] Updating code..." -ForegroundColor Yellow
 if (Test-Path ".git") {
-    $status = git status --porcelain 2>$null
-    if ($status) {
-        git stash push -m "auto-stash by start.ps1" 2>&1 | Out-Null
-        $stashed = $true
-    }
-    git pull --ff-only 2>&1 | Out-Null
-    if ($stashed) {
-        git stash pop 2>&1 | Out-Null
-    }
+    # Fetch latest and force-reset to remote main (avoids stash/merge issues)
+    git fetch origin 2>&1 | Out-Null
+    git checkout main 2>&1 | Out-Null
+    git reset --hard origin/main 2>&1 | Out-Null
+    git clean -fd 2>&1 | Out-Null
     Write-Host "   ✅ Code up to date" -ForegroundColor Green
 } else {
     Write-Host "   ⚠️  Not a git repo — skipping pull" -ForegroundColor Yellow
 }
 
 # ── Step 2: Check Python ──
-Write-Host "[2/4] Setting up Python..." -ForegroundColor Yellow
+Write-Host "[2/5] Setting up Python..." -ForegroundColor Yellow
 $py = $null
 if (Get-Command python -ErrorAction SilentlyContinue) { $py = "python" }
 elseif (Get-Command python3 -ErrorAction SilentlyContinue) { $py = "python3" }
@@ -43,7 +38,7 @@ else {
 Write-Host "   ✅ $py" -ForegroundColor Green
 
 # ── Step 3: Setup venv + install deps ──
-Write-Host "[3/4] Installing dependencies..." -ForegroundColor Yellow
+Write-Host "[3/5] Installing dependencies..." -ForegroundColor Yellow
 if (-not (Test-Path ".venv")) {
     & $py -m venv .venv
 }
@@ -51,8 +46,38 @@ if (-not (Test-Path ".venv")) {
 & .\.venv\Scripts\python.exe -m pip install -q -r requirements.txt
 Write-Host "   ✅ Dependencies up to date" -ForegroundColor Green
 
-# ── Step 4: Launch Jarvis Desktop App ──
-Write-Host "[4/4] Launching Jarvis..." -ForegroundColor Yellow
+# ── Step 4: Build Frontend (CRITICAL — rebuilds UI after code changes) ──
+Write-Host "[4/5] Building frontend..." -ForegroundColor Yellow
+if (Get-Command npm -ErrorAction SilentlyContinue) {
+    if (Test-Path "frontend/package.json") {
+        # Install frontend deps if needed
+        if (-not (Test-Path "frontend/node_modules")) {
+            Write-Host "   📦 Installing frontend deps..." -ForegroundColor DarkGray
+            Push-Location frontend
+            npm install --silent 2>&1 | Out-Null
+            Pop-Location
+        }
+        # Build frontend
+        Push-Location frontend
+        $buildResult = npm run build 2>&1
+        Pop-Location
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "   ✅ Frontend built" -ForegroundColor Green
+        } else {
+            Write-Host "   ⚠️  Frontend build failed — using existing build if available" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "   ⚠️  No frontend/package.json found" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "   ⚠️  npm not found — skipping build (install Node.js for UI)" -ForegroundColor Yellow
+    if (-not (Test-Path "frontend/dist/index.html")) {
+        Write-Host "   ❌ No pre-built frontend found. Install Node.js and run: cd frontend && npm install && npm run build" -ForegroundColor Red
+    }
+}
+
+# ── Step 5: Launch Jarvis Desktop App ──
+Write-Host "[5/5] Launching Jarvis..." -ForegroundColor Yellow
 Write-Host "   🖥️  Opening native window — close it to exit." -ForegroundColor DarkGray
 
 # Check Ollama
@@ -64,20 +89,20 @@ try {
         Write-Host "   🤖 Ollama connected" -ForegroundColor Green
     }
 } catch {
-  Write-Host "   💡 Start Ollama from Start Menu for LLM chat: ollama pull qwen2.5:7b" -ForegroundColor Yellow
+    Write-Host "   💡 Start Ollama from Start Menu for LLM chat: ollama pull qwen2.5:7b" -ForegroundColor Yellow
 }
 
 # Check Voice / Whisper
 Write-Host "   🎤 Checking voice..."
 $whisperOk = $false
 try {
-  $r = & .\.venv\Scripts\python.exe -c "import faster_whisper; print('ok')" 2>&1
-  if ($r -eq "ok") {
-      $whisperOk = $true
-      Write-Host "   🎤 faster-whisper ready — speech-to-text enabled" -ForegroundColor Green
-  }
+    $r = & .\.venv\Scripts\python.exe -c "import faster_whisper; print('ok')" 2>&1
+    if ($r -eq "ok") {
+        $whisperOk = $true
+        Write-Host "   🎤 faster-whisper ready — speech-to-text enabled" -ForegroundColor Green
+    }
 } catch {
-  Write-Host "   💡 Voice STT not available — install: pip install faster-whisper" -ForegroundColor Yellow
+    Write-Host "   💡 Voice STT not available (auto-installed next run)" -ForegroundColor Yellow
 }
 
 Write-Host ""
