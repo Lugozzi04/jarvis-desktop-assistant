@@ -195,7 +195,17 @@ function Chat() {
     addMessage('user', msg);
     setLoading(true);
 
-    const cid = convId;
+    // Auto-create conversation on first message (needed for chat context/history)
+    let cid = convId;
+    if (!cid && !msg.startsWith('/')) {
+      try {
+        const cres = await fetch(`${API}/api/conversations`, { method: 'POST' });
+        const cdata = await cres.json();
+        cid = cdata.id;
+        setConvId(cid);
+        loadConversations();
+      } catch {}
+    }
 
     try {
       const isSlash = msg.startsWith('/');

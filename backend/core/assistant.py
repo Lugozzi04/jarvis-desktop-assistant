@@ -199,32 +199,14 @@ class AssistantOrchestrator:
     def _handle_chat(self, question: str) -> str:
         """Handle a general chat question.
         
-        NOTE: The actual LLM call with tool calling + history happens in
-        chat.py's _chat_with_tools(). This method only handles fallback
-        when no conversation context is available.
+        NOTE: The actual LLM call with tool calling + full conversation history
+        happens in chat.py's _chat_with_tools(). This method returns immediately
+        — it's only a fallback for slash commands and non-conversation contexts.
         """
         if not question:
             return "How can I help you?"
-
-        # Try ChatSkill (which now uses tool calling)
-        try:
-            result = skill_registry.execute("chat", "answer_question", {"question": question})
-            if result and result.success:
-                return result.result or "I processed your request."
-        except Exception:
-            pass
-
-        # Fallback
-        return (
-            "I'm in offline mode — no LLM provider is available. "
-            "For smart chat, install Ollama and run: ollama pull qwen2.5:7b\n\n"
-            "In the meantime, use slash commands:\n"
-            "• /open notepad — Open Notepad\n"
-            "• /search query — Search the web\n"
-            "• /timer 5m test — Set a 5-minute timer\n"
-            "• /system stats — Show system stats\n"
-            "• /ask question — Ask a question via LLM"
-        )
+        # Fast path: let _chat_with_tools handle the LLM with full context
+        return ""
 
     def _format_result(self, result: ActionResult) -> str:
         """Format an ActionResult into a user-friendly message."""

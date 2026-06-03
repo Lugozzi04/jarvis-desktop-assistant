@@ -71,9 +71,9 @@
     ],
     "created_at": "2026-06-02T13:52:46.546332",
     "updated_at": "2026-06-02T13:52:46.546341",
-    "last_run_at": null,
-    "run_count": 0,
-    "last_status": null
+    "last_run_at": "2026-06-03T02:42:14.047789",
+    "run_count": 1,
+    "last_status": "success"
   },
   {
     "id": "dev-session-manual",
