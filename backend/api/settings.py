@@ -93,6 +93,12 @@ def update_settings(updates: dict[str, Any]):
     return {"status": "received", "updates": updates, "note": "Settings persistence coming soon"}
 
 
+@router.get("/settings/language")
+def get_language_api():
+    """Get current language setting ('it' or 'en')."""
+    return {"language": get_language()}
+
+
 @router.put("/settings/language")
 def update_language_api(data: LanguageUpdate):
     """Update language setting ('it' or 'en')."""
