@@ -145,7 +145,6 @@ export function ModelSelector({ selectedModel, onSelectModel }: ModelSelectorPro
           {/* Tiers */}
           {tiers.map(tier => {
             if (tier.models.length === 0) return null;
-            const allInstalled = tier.models.every(m => m.installed);
 
             return (
               <div key={tier.key} className="dash-model-tier">
