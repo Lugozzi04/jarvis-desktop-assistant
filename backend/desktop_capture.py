@@ -85,23 +85,27 @@ def _configure_tesseract() -> bool:
     except ImportError:
         return False
 
-    # Already configured?
-    if pytesseract.get_tesseract_version():
-        return True
-
-    # Try to find and set the path
+    # Try to find and set the path FIRST (before get_tesseract_version)
     path = _find_tesseract()
     if path:
         pytesseract.pytesseract.tesseract_cmd = path
         logger.info("Tesseract found at: {}", path)
-        return True
+    else:
+        logger.warning(
+            "Tesseract-OCR not found. Install from: "
+            "https://github.com/UB-Mannheim/tesseract/wiki\n"
+            "During install, check 'Add to PATH' or select Italian language pack."
+        )
+        return False
 
-    logger.warning(
-        "Tesseract-OCR not found. Install from: "
-        "https://github.com/UB-Mannheim/tesseract/wiki\n"
-        "During install, check 'Add to PATH' or select Italian language pack."
-    )
-    return False
+    # Verify it works
+    try:
+        version = pytesseract.get_tesseract_version()
+        logger.info("Tesseract version: {}", version)
+        return True
+    except Exception as exc:
+        logger.warning("Tesseract found but not working: {}", exc)
+        return False
 
 
 def ocr_image(image_bytes: bytes, language: str = "ita+eng") -> str:
