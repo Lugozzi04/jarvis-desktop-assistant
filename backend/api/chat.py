@@ -95,12 +95,26 @@ def _execute_tool(name: str, args: dict) -> str:
     return f"Tool sconosciuto: {name}"
 
 
-def _build_system_prompt(lang: str) -> str:
+def _build_system_prompt(lang: str, has_file: bool = False) -> str:
     """Build the system prompt with language and tool instructions."""
     if lang == "it":
-        return (
+        base = (
             "Sei JARVIS, un assistente virtuale italiano intelligente e creativo che vive in un desktop Windows. "
             "PARLI ESCLUSIVAMENTE IN ITALIANO. Non usare mai altre lingue.\n\n"
+        )
+        if has_file:
+            base += (
+                "⚠️ L'UTENTE HA CARICATO UN FILE (PDF, immagine o documento). Il contenuto del file "
+                "è nel messaggio utente, dopo il tag [FILE:...]. Questo è IL TUO COMPITO PRINCIPALE:\n\n"
+                "1. LEGGI attentamente TUTTO il contenuto del file fornito.\n"
+                "2. ANALIZZA il contenuto: riassumi, spiega, estrai informazioni chiave.\n"
+                "3. RISPONDI basandoti ESCLUSIVAMENTE sul contenuto del file.\n"
+                "4. NON divagare. NON interpretare le parole dell'utente fuori contesto.\n"
+                "5. NON rispondere a domande che non c'entrano col file.\n\n"
+                "SE L'UTENTE DICE 'spiegami questo PDF' O FRASI SIMILI, "
+                "DEVI SPIEGARE IL CONTENUTO DEL FILE, non il significato letterale delle parole!\n\n"
+            )
+        base += (
             "IL TUO STILE DI RISPOSTA:\n"
             "- Rispondi in modo COMPLETO e DETTAGLIATO: 2-4 paragrafi, non una frase sola.\n"
             "- Usa EMOJI appropriati per rendere le risposte più vivaci e coinvolgenti.\n"
@@ -118,8 +132,8 @@ def _build_system_prompt(lang: str) -> str:
             "- Usa gli strumenti SOLO quando necessario.\n"
             "- Per domande sulla conversazione in corso, usa lo storico.\n"
             "- Se usi risultati di ricerca, cita le fonti (URL).\n"
-            "- Se l'utente carica un file, LEGGILO e rispondi basandoti sul suo contenuto."
         )
+        return base
     else:
         return (
             "You are JARVIS, a helpful desktop assistant. "
@@ -133,7 +147,6 @@ def _build_system_prompt(lang: str) -> str:
             "- Use tools ONLY when needed.\n"
             "- Use conversation history for context.\n"
             "- Cite sources when using web data.\n"
-            "- If user uploads a file, READ it and respond based on its content."
         )
 
 
@@ -193,7 +206,8 @@ def _chat_with_tools(conv_id: str, user_message: str, fallback: str, override_mo
         history = conversation_store.get_context_messages(conv_id, max_messages=20)
 
         # ── 3. Build messages ──
-        system_content = _build_system_prompt(lang)
+        has_file = user_message.startswith("[FILE:")
+        system_content = _build_system_prompt(lang, has_file=has_file)
         messages = [{"role": "system", "content": system_content}]
         messages.extend(history)
         messages.append({"role": "user", "content": user_message})
@@ -315,9 +329,9 @@ async def upload_file_for_chat(file: UploadFile = File(...)):
                     "success": True,
                     "filename": filename,
                     "type": "pdf",
-                    "text": text[:5000],  # Truncate for LLM context
+                    "text": text[:10000],  # Truncate for LLM context
                     "char_count": len(text),
-                    "truncated": len(text) > 5000,
+                    "truncated": len(text) > 10000,
                 }
             except ImportError:
                 return {"success": False, "error": "pymupdf not installed. Run: pip install pymupdf"}

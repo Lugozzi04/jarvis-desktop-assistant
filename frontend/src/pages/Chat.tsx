@@ -287,7 +287,7 @@ function Chat() {
     let displayMsg = msg;
     let fullMsg = msg;
     if (uploadedFile) {
-      fullMsg = `[FILE: ${uploadedFile.name} (${uploadedFile.type})]\n${uploadedFile.text}\n\n---\n${msg}`;
+      fullMsg = `[FILE: ${uploadedFile.name} (${uploadedFile.type})]\n${uploadedFile.text}\n\n---\nAnalizza il contenuto del file qui sopra e rispondi a: ${msg}`;
       displayMsg = `📎 ${uploadedFile.name}\n${msg}`;
     }
     setUploadedFile(null);
