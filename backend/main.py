@@ -62,15 +62,17 @@ body{font-family:'Inter',-apple-system,sans-serif;background:#0f1117;color:#e4e6
 </style>
 </head>
 <body>
-<div class="overlay-header"><span>⚡ JARVIS</span><span style="font-size:0.7rem;color:#5a5d73;margin-left:4px">Ctrl+Shift</span>
-<select id="monitorSel" style="margin-left:auto;background:#1a1d2e;border:1px solid #2a2d3e;color:#e4e6f0;padding:4px 8px;border-radius:6px;font-size:0.75rem;cursor:pointer">
-<option value="1">🖥️ Monitor 1</option>
-<option value="2">🖥️ Monitor 2</option>
+<div class="overlay-header"><span>⚡ JARVIS</span><span style="font-size:0.7rem;color:#5a5d73;margin-left:4px">Ctrl+Shift</span></div>
+<button class="tts-btn" id="ttsBtn" onclick="toggleTTS()" title="Voice OFF — click to hear responses">🔇</button>
+<div class="overlay-input-area">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+<label style="font-size:0.75rem;color:#8b8fa3">Schermo:</label>
+<select id="monitorSel" style="background:#1a1d2e;border:1px solid #2a2d3e;color:#e4e6f0;padding:4px 8px;border-radius:6px;font-size:0.75rem;cursor:pointer">
+<option value="1">🖥️ Principale</option>
+<option value="2">🖥️ Secondario</option>
 <option value="0">🖥️ Tutti</option>
 </select>
 </div>
-<button class="tts-btn" id="ttsBtn" onclick="toggleTTS()" title="Voice OFF — click to hear responses">🔇</button>
-<div class="overlay-input-area">
 <textarea id="q" placeholder="Chiedi a JARVIS... es. 'Cosa significa questo errore?' o 'Riassumi questa pagina'" autofocus></textarea>
 <div class="quick-actions">
 <button class="quick-btn" onclick="ask('Cosa significa questo errore?')">🐛 Spiega errore</button>
