@@ -105,8 +105,42 @@ try {
     Write-Host "   💡 Voice STT not available (auto-installed next run)" -ForegroundColor Yellow
 }
 
+# Check Screen Capture & OCR
+Write-Host "   📸 Checking screen capture..."
+try {
+    $r = & .\.venv\Scripts\python.exe -c "import mss; print('ok')" 2>&1
+    if ($r -eq "ok") { Write-Host "   📸 mss ready — screen capture enabled" -ForegroundColor Green }
+} catch {
+    Write-Host "   💡 Screen capture not available" -ForegroundColor Yellow
+}
+
+try {
+    $r = & .\.venv\Scripts\python.exe -c "import pytesseract; print('ok')" 2>&1
+    if ($r -eq "ok") { Write-Host "   🔤 pytesseract ready — OCR enabled" -ForegroundColor Green }
+} catch {
+    Write-Host "   💡 OCR not available (install Tesseract-OCR for screen reading)" -ForegroundColor Yellow
+}
+
+try {
+    $r = & .\.venv\Scripts\python.exe -c "import pystray; print('ok')" 2>&1
+    if ($r -eq "ok") { Write-Host "   🔔 pystray ready — system tray enabled" -ForegroundColor Green }
+} catch {
+    Write-Host "   💡 System tray not available" -ForegroundColor Yellow
+}
+
 Write-Host ""
-& .\.venv\Scripts\python.exe -m backend.desktop
+Write-Host "   🖥️  Launch mode:" -ForegroundColor White
+Write-Host "      • Windowed (full UI) — default" -ForegroundColor DarkGray
+Write-Host "      • Tray (Alt+Spazio overlay) — use 'start.ps1 --tray'" -ForegroundColor DarkGray
+Write-Host ""
+
+if ($args[0] -eq "--tray") {
+    Write-Host "   🔔 Starting in SYSTEM TRAY mode — Alt+Spazio to open overlay" -ForegroundColor Cyan
+    & .\.venv\Scripts\python.exe -m backend.desktop_tray
+} else {
+    Write-Host "   🖥️  Starting in WINDOWED mode — full UI" -ForegroundColor Cyan
+    & .\.venv\Scripts\python.exe -m backend.desktop
+}
 
 Write-Host ""
 Write-Host "✅ Jarvis closed. See you next time! ⚡" -ForegroundColor Green

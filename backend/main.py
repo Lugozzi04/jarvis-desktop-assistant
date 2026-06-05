@@ -24,6 +24,103 @@ from backend.core.assistant import assistant
 from backend.core.config import settings
 from backend.core.logger import logger, setup_logging
 
+# ── Overlay HTML (Alt+Space quick query page) ──
+
+OVERLAY_HTML = """<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JARVIS Overlay</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',-apple-system,sans-serif;background:#0f1117;color:#e4e6f0;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+.overlay-header{padding:16px 20px;background:#161822;border-bottom:1px solid #2a2d3e;display:flex;align-items:center;gap:8px;-webkit-app-region:drag}
+.overlay-header span{font-size:1rem;font-weight:700;background:linear-gradient(135deg,#6366f1,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.overlay-input-area{padding:20px;display:flex;flex-direction:column;flex:1}
+.overlay-input-area textarea{flex:1;background:#1a1d2e;border:1px solid #2a2d3e;border-radius:12px;color:#e4e6f0;padding:16px;font-family:inherit;font-size:0.95rem;resize:none;outline:none;min-height:80px}
+.overlay-input-area textarea:focus{border-color:#6366f1}
+.overlay-actions{display:flex;gap:8px;margin-top:12px}
+.btn{background:#6366f1;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:0.9rem;cursor:pointer;font-weight:600;transition:background 0.2s}
+.btn:hover{background:#818cf8}
+.btn-ghost{background:transparent;color:#8b8fa3;border:1px solid #2a2d3e}
+.btn-ghost:hover{background:#232740;color:#e4e6f0}
+.quick-actions{display:flex;gap:6px;flex-wrap:wrap}
+.quick-btn{background:#1a1d2e;border:1px solid #2a2d3e;color:#8b8fa3;padding:6px 12px;border-radius:6px;font-size:0.8rem;cursor:pointer;transition:all 0.2s}
+.quick-btn:hover{background:#232740;border-color:#6366f1;color:#e4e6f0}
+.result-area{padding:0 20px 20px;max-height:200px;overflow:auto;display:none}
+.result-area.show{display:block}
+.result-card{background:#1a1d2e;border:1px solid #2a2d3e;border-radius:8px;padding:16px;line-height:1.6;font-size:0.9rem;white-space:pre-line}
+.status{font-size:0.8rem;color:#5a5d73;text-align:center;padding:8px}
+.error{color:#ef4444}
+.loading{display:flex;align-items:center;justify-content:center;gap:8px;padding:20px;color:#8b8fa3}
+.spinner{width:16px;height:16px;border:2px solid #2a2d3e;border-top-color:#6366f1;border-radius:50%;animation:s .6s linear infinite}
+@keyframes s{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="overlay-header"><span>⚡ JARVIS</span><span style="font-size:0.7rem;color:#5a5d73;margin-left:4px">Alt+Spazio</span></div>
+<div class="overlay-input-area">
+<textarea id="q" placeholder="Chiedi a JARVIS... es. 'Cosa significa questo errore?' o 'Riassumi questa pagina'" autofocus></textarea>
+<div class="quick-actions">
+<button class="quick-btn" onclick="ask('Cosa significa questo errore?')">🐛 Spiega errore</button>
+<button class="quick-btn" onclick="ask('Riassumi cosa vedo sullo schermo')">📋 Riassumi</button>
+<button class="quick-btn" onclick="ask('Traduci questo testo in italiano')">🌐 Traduci</button>
+<button class="quick-btn" onclick="ask('Cosa fa questo codice?')">💻 Spiega codice</button>
+</div>
+<div class="overlay-actions">
+<button class="btn" onclick="analyze()" id="goBtn">🔍 Analizza Schermo</button>
+<button class="btn btn-ghost" onclick="window.close()">✕ Chiudi</button>
+</div>
+</div>
+<div class="result-area" id="result"><div class="result-card" id="resultContent"></div></div>
+<div class="status" id="status">Premi Enter o clicca Analizza — JARVIS catturerà lo schermo e analizzerà</div>
+<script>
+const API='http://127.0.0.1:8400';
+const q=document.getElementById('q');
+const go=document.getElementById('goBtn');
+const result=document.getElementById('result');
+const content=document.getElementById('resultContent');
+const status=document.getElementById('status');
+
+q.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();analyze()}});
+
+function ask(question){q.value=question;analyze()}
+
+async function analyze(){
+const question=q.value.trim();
+if(!question){q.focus();return}
+go.disabled=true;
+go.textContent='⏳ Analisi...';
+result.classList.remove('show');
+status.innerHTML='<div class="loading"><div class="spinner"></div>Cattura schermo + OCR + AI...</div>';
+
+try{
+const r=await fetch(API+'/api/desktop/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question})});
+const d=await r.json();
+if(d.success){
+content.innerHTML=d.response;
+result.classList.add('show');
+status.textContent='✅ Analisi completata';
+}else{
+content.innerHTML='<div class="error">❌ '+d.response+'</div>';
+result.classList.add('show');
+status.textContent='⚠️ Errore: '+(d.error||'sconosciuto');
+}
+}catch(e){
+content.innerHTML='<div class="error">❌ Connessione fallita. Backend offline?</div>';
+result.classList.add('show');
+status.textContent='❌ '+e.message;
+}
+
+go.disabled=false;
+go.textContent='🔍 Analizza Schermo';
+q.focus();
+}
+</script>
+</body>
+</html>"""
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -116,6 +213,13 @@ app.add_middleware(
 
 # ── Root ──
 
+@app.get("/overlay")
+def overlay():
+    """Serve the overlay UI for Alt+Space quick queries."""
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=OVERLAY_HTML)
+
+
 @app.get("/")
 def root():
     """Serve frontend if built, otherwise health JSON."""
@@ -175,6 +279,7 @@ from backend.api.apps_wizard import router as apps_wizard_router
 from backend.api.pending_actions import router as pending_actions_router
 from backend.api.timers import router as timers_router
 from backend.api.study import router as study_router
+from backend.api.desktop_api import router as desktop_router
 
 app.include_router(chat_router, prefix="/api")
 app.include_router(command_router, prefix="/api")
@@ -189,6 +294,7 @@ app.include_router(diagnostics_router)
 app.include_router(pending_actions_router)
 app.include_router(timers_router, prefix="/api")
 app.include_router(study_router, prefix="/api")
+app.include_router(desktop_router, prefix="/api")
 app.include_router(apps_wizard_router)
 
 
