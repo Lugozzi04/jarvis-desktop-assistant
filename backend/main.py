@@ -174,6 +174,7 @@ from backend.api.diagnostics import router as diagnostics_router
 from backend.api.apps_wizard import router as apps_wizard_router
 from backend.api.pending_actions import router as pending_actions_router
 from backend.api.timers import router as timers_router
+from backend.api.study import router as study_router
 
 app.include_router(chat_router, prefix="/api")
 app.include_router(command_router, prefix="/api")
@@ -187,6 +188,7 @@ app.include_router(setup_router)
 app.include_router(diagnostics_router)
 app.include_router(pending_actions_router)
 app.include_router(timers_router, prefix="/api")
+app.include_router(study_router, prefix="/api")
 app.include_router(apps_wizard_router)
 
 
