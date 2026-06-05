@@ -55,6 +55,55 @@ def capture_to_base64(monitor: int = 1) -> str:
     return base64.b64encode(img_bytes).decode("utf-8")
 
 
+def _find_tesseract() -> str | None:
+    """Find tesseract.exe on the system. Returns path or None."""
+    import shutil
+
+    # 1. Already in PATH
+    path = shutil.which("tesseract")
+    if path:
+        return path
+
+    # 2. Common Windows install paths
+    candidates = [
+        Path("C:/Program Files/Tesseract-OCR/tesseract.exe"),
+        Path("C:/Program Files (x86)/Tesseract-OCR/tesseract.exe"),
+        Path.home() / "AppData" / "Local" / "Tesseract-OCR" / "tesseract.exe",
+        Path.home() / "AppData" / "Local" / "Programs" / "Tesseract-OCR" / "tesseract.exe",
+    ]
+    for p in candidates:
+        if p.exists():
+            return str(p)
+
+    return None
+
+
+def _configure_tesseract() -> bool:
+    """Configure pytesseract with the correct tesseract path. Returns True if ready."""
+    try:
+        import pytesseract
+    except ImportError:
+        return False
+
+    # Already configured?
+    if pytesseract.get_tesseract_version():
+        return True
+
+    # Try to find and set the path
+    path = _find_tesseract()
+    if path:
+        pytesseract.pytesseract.tesseract_cmd = path
+        logger.info("Tesseract found at: {}", path)
+        return True
+
+    logger.warning(
+        "Tesseract-OCR not found. Install from: "
+        "https://github.com/UB-Mannheim/tesseract/wiki\n"
+        "During install, check 'Add to PATH' or select Italian language pack."
+    )
+    return False
+
+
 def ocr_image(image_bytes: bytes, language: str = "ita+eng") -> str:
     """Run OCR on an image and return extracted text.
 
@@ -69,13 +118,16 @@ def ocr_image(image_bytes: bytes, language: str = "ita+eng") -> str:
         import pytesseract
         from PIL import Image
 
+        if not _configure_tesseract():
+            return ""
+
         img = Image.open(io.BytesIO(image_bytes))
         text = pytesseract.image_to_string(img, lang=language)
         return text.strip()
     except ImportError:
         logger.warning("pytesseract not installed — OCR unavailable")
     except Exception as exc:
-        logger.error("OCR failed: {}", exc)
+        logger.warning("OCR failed — is Tesseract installed? Error: {}", exc)
 
     return ""
 
