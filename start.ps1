@@ -131,11 +131,11 @@ try {
 Write-Host ""
 Write-Host "   🖥️  Launch mode:" -ForegroundColor White
 Write-Host "      • Windowed (full UI) — default" -ForegroundColor DarkGray
-Write-Host "      • Tray (Ctrl+Shift+Spazio overlay) — use 'start.ps1 --tray'" -ForegroundColor DarkGray
+Write-Host "      • Tray (Ctrl+Shift overlay) — use 'start.ps1 --tray'" -ForegroundColor DarkGray
 Write-Host ""
 
 if ($args[0] -eq "--tray") {
-    Write-Host "   🔔 Starting in SYSTEM TRAY mode — Ctrl+Shift+Spazio to open overlay" -ForegroundColor Cyan
+    Write-Host "   🔔 Starting in SYSTEM TRAY mode — Ctrl+Shift to open overlay" -ForegroundColor Cyan
     & .\.venv\Scripts\python.exe -m backend.desktop_tray
 } else {
     Write-Host "   🖥️  Starting in WINDOWED mode — full UI" -ForegroundColor Cyan

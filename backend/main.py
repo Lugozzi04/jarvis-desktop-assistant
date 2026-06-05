@@ -24,7 +24,7 @@ from backend.core.assistant import assistant
 from backend.core.config import settings
 from backend.core.logger import logger, setup_logging
 
-# ── Overlay HTML (Ctrl+Shift+Space quick query page) ──
+# ── Overlay HTML (Ctrl+Shift quick query page) ──
 
 OVERLAY_HTML = """<!DOCTYPE html>
 <html lang="it">
@@ -62,7 +62,7 @@ body{font-family:'Inter',-apple-system,sans-serif;background:#0f1117;color:#e4e6
 </style>
 </head>
 <body>
-<div class="overlay-header"><span>⚡ JARVIS</span><span style="font-size:0.7rem;color:#5a5d73;margin-left:4px">Ctrl+Shift+Spazio</span></div>
+<div class="overlay-header"><span>⚡ JARVIS</span><span style="font-size:0.7rem;color:#5a5d73;margin-left:4px">Ctrl+Shift</span></div>
 <button class="tts-btn" id="ttsBtn" onclick="toggleTTS()" title="Voice OFF — click to hear responses">🔇</button>
 <div class="overlay-input-area">
 <textarea id="q" placeholder="Chiedi a JARVIS... es. 'Cosa significa questo errore?' o 'Riassumi questa pagina'" autofocus></textarea>
@@ -238,7 +238,7 @@ app.add_middleware(
 
 @app.get("/overlay")
 def overlay():
-    """Serve the overlay UI for Ctrl+Shift+Space quick queries."""
+    """Serve the overlay UI for Ctrl+Shift quick queries."""
     from fastapi.responses import HTMLResponse
     return HTMLResponse(content=OVERLAY_HTML)
 

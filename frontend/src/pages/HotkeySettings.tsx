@@ -11,7 +11,7 @@ const MODIFIER_LABELS: Record<ModifierKey, string> = {
 
 export default function HotkeySettings() {
   const [modifiers, setModifiers] = useState<ModifierKey[]>(['ctrl', 'shift']);
-  const [key, setKey] = useState('space');
+  const [key, setKey] = useState('');
   const [listening, setListening] = useState(false);
   const [saved, setSaved] = useState(true);
   const [status, setStatus] = useState('');
@@ -100,11 +100,11 @@ export default function HotkeySettings() {
 
   const resetToDefault = () => {
     setModifiers(['ctrl', 'shift']);
-    setKey('space');
+    setKey('');
     setSaved(false);
   };
 
-  const comboLabel = [...modifiers.map(m => MODIFIER_LABELS[m]), key.toUpperCase()].join(' + ');
+  const comboLabel = [...modifiers.map(m => MODIFIER_LABELS[m]), key ? key.toUpperCase() : 'CHORD'].join(' + ');
 
   return (
     <div style={{ maxWidth: 600, margin: '0 auto', padding: '20px 0' }}>
@@ -139,7 +139,9 @@ export default function HotkeySettings() {
 
       {/* Key selector */}
       <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: 10 }}>Tasto</div>
+        <div style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: 10 }}>
+          Tasto <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(lascia vuoto per CHORD: solo modificatori)</span>
+        </div>
         <div
           ref={keyRef}
           tabIndex={0}
@@ -151,18 +153,27 @@ export default function HotkeySettings() {
           {listening ? (
             <span className="hotkey-listening">Premi un tasto...</span>
           ) : (
-            <span className="hotkey-key-name">{key.toUpperCase()}</span>
+            <span className="hotkey-key-name">{key ? key.toUpperCase() : 'CHORD'}</span>
           )}
           <span className="hotkey-key-hint">
             {listening ? 'in ascolto...' : 'clicca per cambiare'}
           </span>
         </div>
+        {key && (
+          <button
+            className="btn btn-ghost btn-sm"
+            style={{ marginTop: 8 }}
+            onClick={() => { setKey(''); setSaved(false); }}
+          >
+            ✕ Rimuovi tasto (modalita CHORD)
+          </button>
+        )}
       </div>
 
       {/* Actions */}
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
         <button className="btn btn-secondary" onClick={resetToDefault}>
-          🔄 Reset (Ctrl+Shift+Spazio)
+          🔄 Reset (Ctrl+Shift)
         </button>
         {status && (
           <span style={{ fontSize: '0.85rem', color: 'var(--success)' }}>{status}</span>

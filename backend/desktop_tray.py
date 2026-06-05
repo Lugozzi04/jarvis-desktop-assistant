@@ -50,14 +50,23 @@ def _load_hotkey_config() -> dict:
             return json.loads(p.read_text())
         except Exception:
             pass
-    return {"modifiers": ["ctrl", "shift"], "key": "space"}
+    return {"modifiers": ["ctrl", "shift"], "key": ""}
 
 
 def _hotkey_label() -> str:
     cfg = _load_hotkey_config()
-    mods = " + ".join(m.upper() for m in cfg.get("modifiers", ["alt"]))
-    key = cfg.get("key", "space").upper()
-    return f"{mods} + {key}"
+    mods = " + ".join(m.upper() for m in cfg.get("modifiers", ["ctrl", "shift"]))
+    key = cfg.get("key", "")
+    if key:
+        return f"{mods} + {key.upper()}"
+    return mods
+
+
+def _write_script(path: Path, content: str) -> None:
+    """Write a Python script with UTF-8 encoding + declaration header."""
+    header = "# -*- coding: utf-8 -*-\n"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(header + content, encoding="utf-8")
 
 
 # ── Tray ──
@@ -83,18 +92,18 @@ class TrayIcon:
             d.rectangle([16, 28, 48, 36], fill=(255, 255, 255))
 
             menu = pystray.Menu(
-                pystray.MenuItem("🖥️  Apri Jarvis", self._open_main),
-                pystray.MenuItem(f"⚡ {_hotkey_label()} (Analizza)", self._open_overlay),
+                pystray.MenuItem("Apri Jarvis", self._open_main),
+                pystray.MenuItem(f"{_hotkey_label()} (Analizza)", self._open_overlay),
                 pystray.Menu.SEPARATOR,
-                pystray.MenuItem("❌ Esci", self._quit),
+                pystray.MenuItem("Esci", self._quit),
             )
 
             self._icon = pystray.Icon("jarvis", img, "JARVIS Desktop Assistant", menu)
             self._icon.run()
         except ImportError:
-            print("⚠️  pystray not installed — tray disabled")
+            print("pystray not installed - tray disabled")
         except Exception as exc:
-            print(f"⚠️  Tray error: {exc}")
+            print(f"Tray error: {exc}")
 
     def stop(self):
         if self._icon:
@@ -107,16 +116,25 @@ class TrayIcon:
 # ── Hotkey ──
 
 class HotkeyListener:
-    """Global hotkey listener."""
+    """Global hotkey listener.
+
+    Supports two modes:
+    - CHORD mode (key=""): fires when all modifiers are pressed simultaneously.
+      Debounced: won't fire again until all modifiers are released first.
+    - KEY mode (key="space", etc.): fires when the final key is pressed
+      while all modifiers are held.
+    """
 
     def __init__(self, callback):
         self._callback = callback
         self._active = True
         self._pressed = set()
+        self._fired = False  # Debounce chord mode
 
     def _on_press(self, key):
         if not self._active:
-            return False
+            return
+
         try:
             from pynput.keyboard import Key
             mapping = {
@@ -126,14 +144,22 @@ class HotkeyListener:
                 Key.cmd_l: "cmd", Key.cmd_r: "cmd",
             }
             name = mapping.get(key)
+            cfg = _load_hotkey_config()
+            needed = set(cfg.get("modifiers", ["ctrl", "shift"]))
+            target_key = cfg.get("key", "")
+
             if name:
                 self._pressed.add(name)
-            elif hasattr(key, 'name'):
-                cfg = _load_hotkey_config()
-                if key.name == cfg.get("key", "space"):
-                    needed = set(cfg.get("modifiers", ["alt"]))
-                    if needed.issubset(self._pressed):
-                        threading.Thread(target=self._callback, daemon=True).start()
+                # CHORD mode: fire when all modifiers pressed, debounced
+                if not target_key and not self._fired and needed.issubset(self._pressed):
+                    self._fired = True
+                    threading.Thread(target=self._callback, daemon=True).start()
+
+            elif target_key and hasattr(key, 'name'):
+                # KEY mode: fire when the final key + all modifiers
+                if key.name == target_key and needed.issubset(self._pressed):
+                    threading.Thread(target=self._callback, daemon=True).start()
+
         except Exception:
             pass
 
@@ -149,13 +175,18 @@ class HotkeyListener:
             name = mapping.get(key)
             if name:
                 self._pressed.discard(name)
+                # Reset chord debounce when any modifier released
+                cfg = _load_hotkey_config()
+                needed = set(cfg.get("modifiers", ["ctrl", "shift"]))
+                if not needed.issubset(self._pressed):
+                    self._fired = False
         except Exception:
             pass
 
     def run(self):
         try:
             from pynput import keyboard
-            print(f"⌨️  Hotkey active: {_hotkey_label()}")
+            print(f"Hotkey active: {_hotkey_label()}")
             with keyboard.Listener(
                 on_press=self._on_press,
                 on_release=self._on_release,
@@ -164,7 +195,7 @@ class HotkeyListener:
                     time.sleep(0.2)
                 listener.stop()
         except ImportError:
-            print("⚠️  pynput not installed — hotkey disabled")
+            print("pynput not installed - hotkey disabled")
 
     def stop(self):
         self._active = False
@@ -172,13 +203,7 @@ class HotkeyListener:
 
 # ── Window Launchers ──
 
-def launch_main_window():
-    """Open Jarvis main window in a separate Python process (pywebview)."""
-    script = PROJECT_ROOT / "backend" / "_win_main.py"
-    # Create the window script if it doesn't exist
-    if not script.exists():
-        script.parent.mkdir(parents=True, exist_ok=True)
-        script.write_text(f'''"""Auto-generated: Jarvis main window launcher."""
+_MAIN_WINDOW_SCRIPT = '''"""Auto-generated: Jarvis main window launcher."""
 import sys, time
 sys.path.insert(0, r"{PROJECT_ROOT}")
 
@@ -206,29 +231,10 @@ window = webview.create_window(
 )
 webview.start(gui=None, debug=False)
 print("Main window closed.")
-''')
-
-    venv_python = PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"
-    if not venv_python.exists():
-        venv_python = sys.executable
-
-    try:
-        subprocess.Popen(
-            [str(venv_python), str(script)],
-            cwd=str(PROJECT_ROOT),
-            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
-        )
-        print("🖥️  Main window launched")
-    except Exception as exc:
-        print(f"⚠️  Failed to launch main window: {exc}")
+'''
 
 
-def launch_overlay():
-    """Open overlay window in a separate Python process (pywebview)."""
-    script = PROJECT_ROOT / "backend" / "_win_overlay.py"
-    if not script.exists():
-        script.parent.mkdir(parents=True, exist_ok=True)
-        script.write_text(f'''"""Auto-generated: Jarvis overlay launcher."""
+_OVERLAY_SCRIPT = '''"""Auto-generated: Jarvis overlay launcher."""
 import sys, time, traceback
 sys.path.insert(0, r"{PROJECT_ROOT}")
 
@@ -253,7 +259,7 @@ try:
         sys.exit(1)
 
     window = webview.create_window(
-        title="JARVIS — {_hotkey_label()}",
+        title="JARVIS - {HOTKEY_LABEL}",
         url=f"{{URL}}/overlay",
         width=700, height=500,
         resizable=True,
@@ -267,8 +273,37 @@ try:
 except Exception as e:
     print(f"OVERLAY_ERROR: {{e}}", flush=True)
     traceback.print_exc()
-    import time; time.sleep(5)  # Keep console open for debugging
-''')
+    time.sleep(5)
+'''
+
+
+def launch_main_window():
+    """Open Jarvis main window in a separate Python process (pywebview)."""
+    script = PROJECT_ROOT / "backend" / "_win_main.py"
+    content = _MAIN_WINDOW_SCRIPT.format(PROJECT_ROOT=PROJECT_ROOT, URL=URL)
+    _write_script(script, content)
+
+    venv_python = PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"
+    if not venv_python.exists():
+        venv_python = sys.executable
+
+    try:
+        subprocess.Popen(
+            [str(venv_python), str(script)],
+            cwd=str(PROJECT_ROOT),
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+        )
+        print("Main window launched")
+    except Exception as exc:
+        print(f"Failed to launch main window: {exc}")
+
+
+def launch_overlay():
+    """Open overlay window in a separate Python process (pywebview)."""
+    script = PROJECT_ROOT / "backend" / "_win_overlay.py"
+    label = _hotkey_label()
+    content = _OVERLAY_SCRIPT.format(PROJECT_ROOT=PROJECT_ROOT, URL=URL, HOTKEY_LABEL=label)
+    _write_script(script, content)
 
     venv_python = PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"
     if not venv_python.exists():
@@ -283,28 +318,28 @@ except Exception as e:
             text=True,
             creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
         )
-        print("⚡ Overlay launched")
+        print("Overlay launched")
         # Check stderr after a short delay
         time.sleep(1.5)
         if proc.poll() is not None:
             stdout, stderr = proc.communicate(timeout=2)
             if proc.returncode != 0:
-                print(f"⚠️  Overlay exited with code {proc.returncode}")
+                print(f"Overlay exited with code {proc.returncode}")
                 if stderr:
                     print(f"   stderr: {stderr.strip()}")
                 if stdout:
                     print(f"   stdout: {stdout.strip()}")
     except Exception as exc:
-        print(f"⚠️  Failed to launch overlay: {exc}")
+        print(f"Failed to launch overlay: {exc}")
 
 
 # ── Main ──
 
 def main():
-    print("⚡ JARVIS Desktop — System Tray Mode")
+    print("JARVIS Desktop - System Tray Mode")
     print(f"   Backend: {URL}")
     print(f"   Hotkey:  {_hotkey_label()}")
-    print("   Right-click tray icon → Apri Jarvis / Analizza / Esci")
+    print("   Right-click tray icon for menu")
     print()
 
     # 1. Backend
@@ -315,21 +350,21 @@ def main():
     for _ in range(30):
         try:
             if httpx.get(f"{URL}/health", timeout=1).status_code == 200:
-                print("✅ Backend ready")
+                print("Backend ready")
                 break
         except Exception:
             time.sleep(0.5)
     else:
-        print("⚠️  Backend didn't start — continuing")
+        print("Backend didn't start - continuing")
 
     # 2. Quit handler
     def quit_all():
-        print("👋 Shutting down...")
+        print("Shutting down...")
         hotkey.stop()
         tray.stop()
         sys.exit(0)
 
-    # 3. Calls for menu
+    # 3. Window launchers
     def open_main():
         launch_main_window()
 
