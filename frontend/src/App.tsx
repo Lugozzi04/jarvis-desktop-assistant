@@ -15,6 +15,7 @@ import PendingActions from './pages/PendingActions';
 import SetupWizard from './pages/SetupWizard';
 import AppWizard from './pages/AppWizard';
 import Study from './pages/Study';
+import HotkeySettings from './pages/HotkeySettings';
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/chat" element={<Chat />} />
           <Route path="/study" element={<Study />} />
+          <Route path="/hotkeys" element={<HotkeySettings />} />
           <Route path="/skills" element={<Skills />} />
           <Route path="/workflows" element={<Workflows />} />
           <Route path="/automations" element={<Automations />} />

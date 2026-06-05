@@ -303,6 +303,7 @@ from backend.api.pending_actions import router as pending_actions_router
 from backend.api.timers import router as timers_router
 from backend.api.study import router as study_router
 from backend.api.desktop_api import router as desktop_router
+from backend.api.hotkeys import router as hotkeys_router
 
 app.include_router(chat_router, prefix="/api")
 app.include_router(command_router, prefix="/api")
@@ -318,6 +319,7 @@ app.include_router(pending_actions_router)
 app.include_router(timers_router, prefix="/api")
 app.include_router(study_router, prefix="/api")
 app.include_router(desktop_router, prefix="/api")
+app.include_router(hotkeys_router, prefix="/api")
 app.include_router(apps_wizard_router)
 
 
