@@ -25,7 +25,7 @@ function saveSettings(s: { focus: number; shortBreak: number; longBreak: number 
 
 // ── Confetti Animation ──
 
-function spawnConfetti(container: HTMLElement) {
+function spawnConfetti() {
   const colors = ['#6366f1', '#a78bfa', '#22c55e', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899'];
   const particles: HTMLDivElement[] = [];
 
@@ -100,7 +100,7 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
             setSessions(s => s + 1);
             // Celebration!
             setCelebrating(true);
-            spawnConfetti(document.body);
+            spawnConfetti();
             setTimeout(() => setCelebrating(false), 4000);
           }
           return 0;
