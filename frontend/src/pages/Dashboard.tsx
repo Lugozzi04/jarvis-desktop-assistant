@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import type { HealthFullResponse } from '../api';
+import { ModelSelector } from '../components/ModelSelector';
 
 interface StatusCardProps {
   icon: string;
@@ -45,6 +46,7 @@ function Dashboard() {
   const [splash, setSplash] = useState(true);
   const [language, setLanguage] = useState<string>('it');
   const [langSaving, setLangSaving] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -170,6 +172,9 @@ function Dashboard() {
         @keyframes loadingBar { from { width: 0%; } to { width: 100%; } }
       `}</style>
       <h2 style={{ marginBottom: 20, fontSize: '1.5rem' }}>Dashboard</h2>
+
+      {/* AI Model Selector */}
+      <ModelSelector selectedModel={selectedModel} onSelectModel={setSelectedModel} />
 
       {/* Language Selector */}
       <div style={{

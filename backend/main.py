@@ -331,6 +331,7 @@ app.include_router(study_router, prefix="/api")
 app.include_router(desktop_router, prefix="/api")
 app.include_router(hotkeys_router, prefix="/api")
 app.include_router(apps_wizard_router)
+app.include_router(models_router, prefix="/api")
 
 
 # ── Serve Frontend SPA (only if built) ──

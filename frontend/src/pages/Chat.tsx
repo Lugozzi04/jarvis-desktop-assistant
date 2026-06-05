@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import type { ChatResponse } from '../api';
 import SlashAutocomplete from '../components/SlashAutocomplete';
-import { ModelSelector } from '../components/ModelSelector';
 
 interface Message {
   id: number;
@@ -56,8 +55,8 @@ function Chat() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Model selection
-  const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  // Model selection — reads from Dashboard via localStorage
+  const selectedModel = localStorage.getItem('jarvis_selected_model');
 
   useEffect(() => { loadConversations(); }, []);
   useEffect(() => {
@@ -394,13 +393,12 @@ function Chat() {
           </div>
         )}
 
-        {/* ── Top bar: Save + Model Selector ── */}
+        {/* ── Top bar: Save ── */}
         <div style={{
           position: 'absolute',
           top: 10, right: 14, zIndex: 50,
           display: 'flex', gap: 8, alignItems: 'center',
         }}>
-          <ModelSelector selectedModel={selectedModel} onSelectModel={setSelectedModel} />
           {isTemp && (
             <div style={{
             background: 'var(--bg-secondary, #1e1e2e)',
