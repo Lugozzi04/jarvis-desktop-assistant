@@ -135,7 +135,45 @@ function Chat() {
     } catch {}
   };
 
-  // ── Voice ──
+  // ── Drag and Drop ──
+
+  const [dragOver, setDragOver] = useState(false);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadedFile(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`${API}/api/chat/upload`, { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.success) {
+        setUploadedFile({ name: data.filename, text: data.text, type: data.type });
+      } else {
+        alert('Upload failed: ' + (data.error || 'Unknown error'));
+      }
+    } catch (err: any) {
+      alert('Upload error: ' + err.message);
+    }
+    setUploading(false);
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -325,7 +363,32 @@ function Chat() {
       )}
 
       {/* Main Chat Area */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, position: 'relative' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, position: 'relative' }}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {/* Drop zone overlay */}
+        {dragOver && (
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: 100,
+            background: 'rgba(99, 102, 241, 0.15)',
+            border: '3px dashed var(--accent)',
+            borderRadius: 12,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            pointerEvents: 'none',
+          }}>
+            <div style={{
+              textAlign: 'center', color: 'var(--accent)',
+              fontSize: '1.5rem', fontWeight: 700,
+            }}>
+              📎 Trascina qui il file<br />
+              <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 400 }}>
+                PDF, immagini, testo — JARVIS lo leggerà
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* ── Save Box (only on temporary chats) ── */}
         {isTemp && (
