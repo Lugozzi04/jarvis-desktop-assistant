@@ -269,10 +269,10 @@ export const api = {
   health: () => fetchAPI<HealthStatus>('/health'),
   healthFull: () => fetchAPI<HealthFullResponse>('/api/health/full'),
   pendingActionsCount: () => fetchAPI<PendingCountResponse>('/api/pending-actions/count'),
-  chat: (message: string, sessionId?: string) =>
+  chat: (message: string, sessionId?: string, model?: string | null) =>
     fetchAPI<ChatResponse>('/api/chat', {
       method: 'POST',
-      body: JSON.stringify({ message, session_id: sessionId || 'default' }),
+      body: JSON.stringify({ message, session_id: sessionId || 'default', model }),
     }),
   command: (command: string, sessionId?: string) =>
     fetchAPI<ChatResponse>('/api/command', {

@@ -26,6 +26,7 @@ class ChatRequest(BaseModel):
     message: str
     session_id: str = "default"
     source: str = "text"
+    model: str | None = None  # Override the default model
 
 
 class ChatResponse(BaseModel):
@@ -155,7 +156,7 @@ def chat(request: ChatRequest):
 
     # For non-slash messages in a conversation, use LLM with tool calling
     if conv_id and not is_slash:
-        response_text = _chat_with_tools(conv_id, request.message, response_text)
+        response_text = _chat_with_tools(conv_id, request.message, response_text, request.model)
 
     if conv_id and response_text:
         conversation_store.add_message(conv_id, "assistant", response_text)
@@ -170,7 +171,7 @@ def chat(request: ChatRequest):
     )
 
 
-def _chat_with_tools(conv_id: str, user_message: str, fallback: str) -> str:
+def _chat_with_tools(conv_id: str, user_message: str, fallback: str, override_model: str | None = None) -> str:
     """Single Ollama call with native TOOL CALLING.
 
     The model decides whether to use tools (web_search, get_current_time).
@@ -198,7 +199,7 @@ def _chat_with_tools(conv_id: str, user_message: str, fallback: str) -> str:
         messages.append({"role": "user", "content": user_message})
 
         # ── 4. Ollama model ──
-        model = getattr(settings.llm, 'chat_model', 'qwen2.5:7b') or 'qwen2.5:7b'
+        model = override_model or getattr(settings.llm, 'chat_model', 'qwen2.5:7b') or 'qwen2.5:7b'
         ollama_url = (settings.llm.base_url or "http://localhost:11434").rstrip("/")
 
         logger.info("Chat with tools: model={}, history={} msgs, lang={}", model, len(history), lang)

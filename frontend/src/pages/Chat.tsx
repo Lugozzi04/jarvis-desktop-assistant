@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import type { ChatResponse } from '../api';
 import SlashAutocomplete from '../components/SlashAutocomplete';
+import { ModelSelector } from '../components/ModelSelector';
 
 interface Message {
   id: number;
@@ -54,6 +55,9 @@ function Chat() {
   const [uploadedFile, setUploadedFile] = useState<{ name: string; text: string; type: string } | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Model selection
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
 
   useEffect(() => { loadConversations(); }, []);
   useEffect(() => {
@@ -308,7 +312,7 @@ function Chat() {
       const isSlash = msg.startsWith('/');
       const res = isSlash
         ? await api.command(fullMsg, cid || undefined)
-        : await api.chat(fullMsg, cid || undefined);
+        : await api.chat(fullMsg, cid || undefined, selectedModel);
       addMessage('assistant', formatResult(res));
       if (ttsEnabled) playTTS(res.response);
       if (res.intent) {
@@ -390,13 +394,15 @@ function Chat() {
           </div>
         )}
 
-        {/* ── Save Box (only on temporary chats) ── */}
-        {isTemp && (
-          <div style={{
-            position: 'absolute',
-            top: 10,
-            right: 14,
-            zIndex: 50,
+        {/* ── Top bar: Save + Model Selector ── */}
+        <div style={{
+          position: 'absolute',
+          top: 10, right: 14, zIndex: 50,
+          display: 'flex', gap: 8, alignItems: 'center',
+        }}>
+          <ModelSelector selectedModel={selectedModel} onSelectModel={setSelectedModel} />
+          {isTemp && (
+            <div style={{
             background: 'var(--bg-secondary, #1e1e2e)',
             border: '1px solid var(--accent, #6366f1)',
             borderRadius: 10,
@@ -423,6 +429,7 @@ function Chat() {
             <span style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--accent, #6366f1)' }}>Save Chat</span>
           </div>
         )}
+        </div>
 
         {/* Messages */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 40px', display: 'flex', flexDirection: 'column', gap: 8 }}>

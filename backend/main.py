@@ -313,6 +313,7 @@ from backend.api.timers import router as timers_router
 from backend.api.study import router as study_router
 from backend.api.desktop_api import router as desktop_router
 from backend.api.hotkeys import router as hotkeys_router
+from backend.api.models import router as models_router
 
 app.include_router(chat_router, prefix="/api")
 app.include_router(command_router, prefix="/api")
