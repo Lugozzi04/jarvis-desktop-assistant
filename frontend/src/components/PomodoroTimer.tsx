@@ -64,7 +64,6 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
   const [celebrating, setCelebrating] = useState(false);
   const intervalRef = useRef<number | null>(null);
   const startTimeRef = useRef<number>(0);
-  const cardRef = useRef<HTMLDivElement>(null);
 
   const clearTimer = useCallback(() => {
     if (intervalRef.current) {
@@ -173,7 +172,7 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
   };
 
   return (
-    <div className="pomodoro-card" ref={cardRef}>
+    <div className="pomodoro-card">
       {/* Celebration overlay */}
       {celebrating && (
         <div className="pomodoro-celebration">

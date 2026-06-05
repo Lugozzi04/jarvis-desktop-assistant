@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-
 type ModifierKey = 'ctrl' | 'alt' | 'shift' | 'cmd';
 
 const MODIFIER_LABELS: Record<ModifierKey, string> = {
