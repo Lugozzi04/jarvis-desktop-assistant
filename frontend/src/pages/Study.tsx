@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../api';
-import type { StudyMaterialSummary, StudyMaterialFull, StudyFlashcard, QuizQuestion } from '../api';
+import type { StudyMaterialSummary, StudyMaterialFull } from '../api';
 import { PomodoroTimer } from '../components/PomodoroTimer';
 
 type ViewMode = 'list' | 'upload' | 'flashcards' | 'quiz' | 'material';
@@ -21,14 +21,14 @@ export default function Study() {
   // Flashcards
   const [flashcardIndex, setFlashcardIndex] = useState(0);
   const [showBack, setShowBack] = useState(false);
-  const [fcCount, setFcCount] = useState(10);
+  const [fcCount] = useState(10);
 
   // Quiz
   const [quizIndex, setQuizIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [quizAnswered, setQuizAnswered] = useState(false);
   const [quizScore, setQuizScore] = useState({ correct: 0, total: 0 });
-  const [quizCount, setQuizCount] = useState(5);
+  const [quizCount] = useState(5);
 
   // Session stats
   const [sessionStats, setSessionStats] = useState({ sessions: 0, focusMinutes: 0 });
@@ -63,8 +63,8 @@ export default function Study() {
     if (!uploadText.trim()) return;
     setLoading(true); setError('');
     try {
-      const result = await api.uploadStudyText(uploadText, uploadTitle || 'Note rapide');
-      if (result.error) { setError(result.error); return; }
+      const data: any = await api.uploadStudyText(uploadText, uploadTitle || 'Note rapide');
+      if (data.error) { setError(data.error); return; }
       setUploadText(''); setUploadTitle('');
       await loadMaterials();
       setView('list');
@@ -99,7 +99,7 @@ export default function Study() {
     if (!currentMaterial) return;
     setLoading(true);
     try {
-      const result = await api.generateSummary(currentMaterial.id);
+      await api.generateSummary(currentMaterial.id);
       await openMaterial(currentMaterial.id);
     } catch (e: any) { setError(e.message); }
     finally { setLoading(false); }
@@ -109,7 +109,7 @@ export default function Study() {
     if (!currentMaterial) return;
     setLoading(true);
     try {
-      const result = await api.generateFlashcards(currentMaterial.id, fcCount);
+      await api.generateFlashcards(currentMaterial.id, fcCount);
       await openMaterial(currentMaterial.id);
       setFlashcardIndex(0);
       setShowBack(false);
@@ -122,7 +122,7 @@ export default function Study() {
     if (!currentMaterial) return;
     setLoading(true);
     try {
-      const result = await api.generateQuiz(currentMaterial.id, quizCount);
+      await api.generateQuiz(currentMaterial.id, quizCount);
       await openMaterial(currentMaterial.id);
       setQuizIndex(0);
       setSelectedOption(null);
