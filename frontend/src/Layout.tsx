@@ -48,6 +48,9 @@ function Layout() {
           <NavLink to="/chat" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <span className="nav-icon">💬</span> Chat
           </NavLink>
+          <NavLink to="/study" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <span className="nav-icon">📚</span> Study
+          </NavLink>
           <NavLink to="/skills" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <span className="nav-icon">🧩</span> Skills
           </NavLink>

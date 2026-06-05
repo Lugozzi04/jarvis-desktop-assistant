@@ -14,6 +14,7 @@ import Documents from './pages/Documents';
 import PendingActions from './pages/PendingActions';
 import SetupWizard from './pages/SetupWizard';
 import AppWizard from './pages/AppWizard';
+import Study from './pages/Study';
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/chat" element={<Chat />} />
+          <Route path="/study" element={<Study />} />
           <Route path="/skills" element={<Skills />} />
           <Route path="/workflows" element={<Workflows />} />
           <Route path="/automations" element={<Automations />} />

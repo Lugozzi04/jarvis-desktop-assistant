@@ -223,6 +223,48 @@ export interface PendingCountResponse {
   count: number;
 }
 
+// ── Study Types ──
+
+export interface StudyFlashcard {
+  id: string;
+  front: string;
+  back: string;
+  easiness: number;
+  interval: number;
+  repetitions: number;
+  next_review: string;
+  created_at: string;
+}
+
+export interface QuizQuestion {
+  question: string;
+  options: string[];
+  correct_index: number;
+  explanation: string;
+}
+
+export interface StudyMaterialSummary {
+  id: string;
+  title: string;
+  content: string;
+  source: string;
+  summary: string;
+  flashcard_count: number;
+  quiz_question_count: number;
+  created_at: string;
+}
+
+export interface StudyMaterialFull {
+  id: string;
+  title: string;
+  content: string;
+  source: string;
+  summary: string;
+  flashcards: StudyFlashcard[];
+  quiz_questions: QuizQuestion[];
+  created_at: string;
+}
+
 export const api = {
   health: () => fetchAPI<HealthStatus>('/health'),
   healthFull: () => fetchAPI<HealthFullResponse>('/api/health/full'),
@@ -308,4 +350,53 @@ export const api = {
       '/api/pending-actions/cleanup',
       { method: 'POST', body: JSON.stringify({ retention_hours: retentionHours ?? 1 }) },
     ),
+
+  // ── Study API ──
+  studyMaterials: () =>
+    fetchAPI<{ materials: StudyMaterialSummary[] }>('/api/study/materials'),
+  studyMaterial: (id: string) =>
+    fetchAPI<StudyMaterialFull>(`/api/study/materials/${id}`),
+  uploadPDF: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API_BASE}/api/study/materials/upload-pdf`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`API ${res.status}: ${err}`);
+    }
+    return res.json();
+  },
+  uploadStudyText: (text: string, title: string) =>
+    fetchAPI<StudyMaterialFull>('/api/study/materials/upload-text', {
+      method: 'POST',
+      body: JSON.stringify({ text, title }),
+    }),
+  generateSummary: (id: string) =>
+    fetchAPI<{ material_id: string; summary: string }>(`/api/study/materials/${id}/summarize`, {
+      method: 'POST',
+    }),
+  generateFlashcards: (id: string, count: number = 10) =>
+    fetchAPI<{ material_id: string; flashcards: StudyFlashcard[]; count: number }>(
+      `/api/study/materials/${id}/flashcards`,
+      { method: 'POST', body: JSON.stringify({ count }) },
+    ),
+  generateQuiz: (id: string, count: number = 5) =>
+    fetchAPI<{ material_id: string; questions: QuizQuestion[]; count: number }>(
+      `/api/study/materials/${id}/quiz`,
+      { method: 'POST', body: JSON.stringify({ count }) },
+    ),
+  reviewFlashcard: (materialId: string, cardId: string, quality: number) =>
+    fetchAPI<StudyFlashcard>(`/api/study/materials/${materialId}/review`, {
+      method: 'POST',
+      body: JSON.stringify({ card_id: cardId, quality }),
+    }),
+  dueFlashcards: (materialId: string) =>
+    fetchAPI<{ material_id: string; due_count: number; total_count: number; flashcards: StudyFlashcard[] }>(
+      `/api/study/materials/${materialId}/due`,
+    ),
+  deleteStudyMaterial: (id: string) =>
+    fetchAPI<{ deleted: string }>(`/api/study/materials/${id}`, { method: 'DELETE' }),
 };
