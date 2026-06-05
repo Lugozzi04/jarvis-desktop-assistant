@@ -27,7 +27,7 @@ def _read_hotkeys() -> dict:
             return json.loads(p.read_text())
         except Exception:
             pass
-    return {"modifiers": ["alt"], "key": "space"}
+    return {"modifiers": ["ctrl", "shift"], "key": "space"}
 
 
 def _save_hotkeys(data: dict) -> None:

@@ -50,7 +50,7 @@ def _load_hotkey_config() -> dict:
             return json.loads(p.read_text())
         except Exception:
             pass
-    return {"modifiers": ["alt"], "key": "space"}
+    return {"modifiers": ["ctrl", "shift"], "key": "space"}
 
 
 def _hotkey_label() -> str:
@@ -229,34 +229,45 @@ def launch_overlay():
     if not script.exists():
         script.parent.mkdir(parents=True, exist_ok=True)
         script.write_text(f'''"""Auto-generated: Jarvis overlay launcher."""
-import sys, time
+import sys, time, traceback
 sys.path.insert(0, r"{PROJECT_ROOT}")
 
-import webview
-import httpx
+try:
+    import webview
+    import httpx
 
-URL = "{URL}"
+    URL = "{URL}"
 
-# Wait for backend
-for _ in range(20):
-    try:
-        httpx.get(f"{{URL}}/health", timeout=1)
-        break
-    except Exception:
-        time.sleep(0.5)
+    # Wait for backend
+    ready = False
+    for _ in range(20):
+        try:
+            httpx.get(f"{{URL}}/health", timeout=1)
+            ready = True
+            break
+        except Exception:
+            time.sleep(0.5)
 
-window = webview.create_window(
-    title="JARVIS — {_hotkey_label()}",
-    url=f"{{URL}}/overlay",
-    width=700, height=500,
-    frameless=True,
-    easy_drag=True,
-    on_top=True,
-    resizable=True,
-    min_size=(400, 300),
-)
-webview.start(gui=None, debug=False)
-print("Overlay closed.")
+    if not ready:
+        print("OVERLAY_ERROR: Backend not reachable", flush=True)
+        sys.exit(1)
+
+    window = webview.create_window(
+        title="JARVIS — {_hotkey_label()}",
+        url=f"{{URL}}/overlay",
+        width=700, height=500,
+        resizable=True,
+        min_size=(400, 300),
+        confirm_close=False,
+        text_select=True,
+    )
+    webview.start(gui=None, debug=False)
+    print("Overlay closed.", flush=True)
+
+except Exception as e:
+    print(f"OVERLAY_ERROR: {{e}}", flush=True)
+    traceback.print_exc()
+    import time; time.sleep(5)  # Keep console open for debugging
 ''')
 
     venv_python = PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"
@@ -264,12 +275,25 @@ print("Overlay closed.")
         venv_python = sys.executable
 
     try:
-        subprocess.Popen(
+        proc = subprocess.Popen(
             [str(venv_python), str(script)],
             cwd=str(PROJECT_ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
             creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
         )
         print("⚡ Overlay launched")
+        # Check stderr after a short delay
+        time.sleep(1.5)
+        if proc.poll() is not None:
+            stdout, stderr = proc.communicate(timeout=2)
+            if proc.returncode != 0:
+                print(f"⚠️  Overlay exited with code {proc.returncode}")
+                if stderr:
+                    print(f"   stderr: {stderr.strip()}")
+                if stdout:
+                    print(f"   stdout: {stdout.strip()}")
     except Exception as exc:
         print(f"⚠️  Failed to launch overlay: {exc}")
 

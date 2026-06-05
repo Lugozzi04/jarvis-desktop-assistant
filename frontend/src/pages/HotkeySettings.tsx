@@ -10,7 +10,7 @@ const MODIFIER_LABELS: Record<ModifierKey, string> = {
 };
 
 export default function HotkeySettings() {
-  const [modifiers, setModifiers] = useState<ModifierKey[]>(['alt']);
+  const [modifiers, setModifiers] = useState<ModifierKey[]>(['ctrl', 'shift']);
   const [key, setKey] = useState('space');
   const [listening, setListening] = useState(false);
   const [saved, setSaved] = useState(true);
@@ -99,7 +99,7 @@ export default function HotkeySettings() {
   );
 
   const resetToDefault = () => {
-    setModifiers(['alt']);
+    setModifiers(['ctrl', 'shift']);
     setKey('space');
     setSaved(false);
   };
@@ -162,7 +162,7 @@ export default function HotkeySettings() {
       {/* Actions */}
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
         <button className="btn btn-secondary" onClick={resetToDefault}>
-          🔄 Reset (Alt+Spazio)
+          🔄 Reset (Ctrl+Shift+Spazio)
         </button>
         {status && (
           <span style={{ fontSize: '0.85rem', color: 'var(--success)' }}>{status}</span>
