@@ -50,6 +50,11 @@ function Chat() {
   const [ttsEnabled, setTtsEnabled] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  // File upload
+  const [uploadedFile, setUploadedFile] = useState<{ name: string; text: string; type: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => { loadConversations(); }, []);
   useEffect(() => {
     const cmd = searchParams.get('cmd');
@@ -131,6 +136,28 @@ function Chat() {
   };
 
   // ── Voice ──
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadedFile(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`${API}/api/chat/upload`, { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.success) {
+        setUploadedFile({ name: data.filename, text: data.text, type: data.type });
+      } else {
+        alert('Upload failed: ' + (data.error || 'Unknown error'));
+      }
+    } catch (err: any) {
+      alert('Upload error: ' + err.message);
+    }
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   const playTTS = async (text: string) => {
     if (!ttsEnabled || !text) return;
@@ -214,7 +241,17 @@ function Chat() {
     if (!msg || loading) return;
 
     setInput('');
-    addMessage('user', msg);
+
+    // If a file was uploaded, prepend its content to the message
+    let displayMsg = msg;
+    let fullMsg = msg;
+    if (uploadedFile) {
+      fullMsg = `[FILE: ${uploadedFile.name} (${uploadedFile.type})]\n${uploadedFile.text}\n\n---\n${msg}`;
+      displayMsg = `📎 ${uploadedFile.name}\n${msg}`;
+    }
+    setUploadedFile(null);
+
+    addMessage('user', displayMsg);
     setLoading(true);
 
     // Auto-create conversation on first message (needed for chat context/history)
@@ -232,8 +269,8 @@ function Chat() {
     try {
       const isSlash = msg.startsWith('/');
       const res = isSlash
-        ? await api.command(msg, cid || undefined)
-        : await api.chat(msg, cid || undefined);
+        ? await api.command(fullMsg, cid || undefined)
+        : await api.chat(fullMsg, cid || undefined);
       addMessage('assistant', formatResult(res));
       if (ttsEnabled) playTTS(res.response);
       if (res.intent) {
@@ -349,6 +386,30 @@ function Chat() {
 
         {/* Input Area */}
         <div style={{ padding: '8px 12px', borderTop: '1px solid var(--border)', background: 'var(--bg-primary)', position: 'relative' }}>
+          {/* File upload preview */}
+          {uploadedFile && (
+            <div style={{
+              marginBottom: 8, padding: '6px 10px', background: 'var(--bg-card)',
+              border: '1px solid var(--accent)', borderRadius: 8,
+              display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.8rem',
+            }}>
+              <span>📎</span>
+              <span style={{ flex: 1, fontWeight: 500 }}>{uploadedFile.name}</span>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>
+                {uploadedFile.type.toUpperCase()} · {uploadedFile.text.length} caratteri
+              </span>
+              <button
+                className="btn btn-ghost btn-sm"
+                style={{ padding: '2px 6px', fontSize: '0.7rem' }}
+                onClick={() => setUploadedFile(null)}
+              >✕</button>
+            </div>
+          )}
+          {uploading && (
+            <div style={{ marginBottom: 8, padding: '6px 10px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              ⏳ Estraendo testo da {uploadedFile?.name || 'file'}...
+            </div>
+          )}
           <SlashAutocomplete
             ref={autocompleteRef}
             value={input}
@@ -358,6 +419,19 @@ function Chat() {
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button className="btn btn-sm btn-secondary" style={{ padding: '4px 8px', fontSize: '0.7rem', flexShrink: 0, borderRadius: 8 }} onClick={() => setShowHistory(!showHistory)} title="Toggle history sidebar">
               {showHistory ? '◀' : '📋'}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.png,.jpg,.jpeg,.gif,.bmp,.webp,.txt,.md,.py,.js,.ts,.json,.yaml,.yml,.csv,.html,.css,.xml,.log"
+              onChange={handleFileUpload}
+              style={{ display: 'none' }}
+            />
+            <button className="btn btn-sm btn-secondary" style={{ padding: '4px 8px', fontSize: '0.7rem', flexShrink: 0, borderRadius: 8 }}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={loading || uploading || transcribing}
+              title="Allega file (PDF, immagini, testo)">
+              📎
             </button>
             <input ref={inputRef} type="text" placeholder={recording ? '🔴 Recording...' : transcribing ? '🎤 Transcribing...' : 'Type a message or slash command...'}
               value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown} disabled={loading || transcribing}

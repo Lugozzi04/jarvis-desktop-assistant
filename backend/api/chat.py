@@ -10,6 +10,7 @@ import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter
+from fastapi import UploadFile, File
 from pydantic import BaseModel
 
 from backend.chat_store import conversation_store
@@ -97,29 +98,41 @@ def _build_system_prompt(lang: str) -> str:
     """Build the system prompt with language and tool instructions."""
     if lang == "it":
         return (
-            "Sei JARVIS, un assistente virtuale italiano che vive in un desktop Windows. "
+            "Sei JARVIS, un assistente virtuale italiano intelligente e creativo che vive in un desktop Windows. "
             "PARLI ESCLUSIVAMENTE IN ITALIANO. Non usare mai altre lingue.\n\n"
+            "IL TUO STILE DI RISPOSTA:\n"
+            "- Rispondi in modo COMPLETO e DETTAGLIATO: 2-4 paragrafi, non una frase sola.\n"
+            "- Usa EMOJI appropriati per rendere le risposte più vivaci e coinvolgenti.\n"
+            "- Quando spieghi qualcosa, usa ESEMPI CONCRETI.\n"
+            "- Se la domanda è complessa, STRUTTURA la risposta con punti chiave.\n"
+            "- Sii ENTUSIASTA e coinvolgente, come un buon insegnante.\n"
+            "- Adatta il tono: formale per argomenti seri, amichevole per il resto.\n"
+            "- NON limitarti a una risposta breve. Sviluppa il ragionamento.\n"
+            "- Se non sai qualcosa, proponi alternative o suggerisci dove cercare.\n\n"
             "HAI ACCESSO A QUESTI STRUMENTI:\n"
             "- web_search: cerca informazioni aggiornate su internet. Usalo per "
-            "prezzi, meteo, notizie, eventi recenti. NON serve per domande di cultura generale.\n"
+            "prezzi, meteo, notizie, eventi recenti, coding questions.\n"
             "- get_current_time: ottieni data e ora attuale.\n\n"
             "REGOLE IMPORTANTI:\n"
             "- Usa gli strumenti SOLO quando necessario.\n"
             "- Per domande sulla conversazione in corso, usa lo storico.\n"
-            "- Rispondi in modo conciso (3-5 frasi).\n"
-            "- Se usi risultati di ricerca, cita le fonti (URL)."
+            "- Se usi risultati di ricerca, cita le fonti (URL).\n"
+            "- Se l'utente carica un file, LEGGILO e rispondi basandoti sul suo contenuto."
         )
     else:
         return (
             "You are JARVIS, a helpful desktop assistant. "
-            "Respond concisely in English.\n\n"
+            "Respond in English in a COMPLETE and DETAILED manner (2-4 paragraphs). "
+            "Use emojis, examples, and structured responses when appropriate. "
+            "Be enthusiastic and engaging.\n\n"
             "TOOLS AVAILABLE:\n"
             "- web_search: search the web for real-time info.\n"
             "- get_current_time: get current date and time.\n\n"
             "RULES:\n"
             "- Use tools ONLY when needed.\n"
             "- Use conversation history for context.\n"
-            "- Cite sources when using web data."
+            "- Cite sources when using web data.\n"
+            "- If user uploads a file, READ it and respond based on its content."
         )
 
 
@@ -197,7 +210,7 @@ def _chat_with_tools(conv_id: str, user_message: str, fallback: str) -> str:
                 "messages": messages,
                 "stream": False,
                 "tools": OLLAMA_TOOLS,
-                "options": {"temperature": 0.5},
+                "options": {"temperature": 0.7},
             }
 
             r = requests.post(f"{ollama_url}/api/chat", json=payload, timeout=60)
@@ -255,7 +268,7 @@ def _chat_with_tools(conv_id: str, user_message: str, fallback: str) -> str:
                     "model": model,
                     "messages": messages,
                     "stream": False,
-                    "options": {"temperature": 0.5},
+                    "options": {"temperature": 0.7},
                 },
                 timeout=60,
             )
@@ -270,3 +283,84 @@ def _chat_with_tools(conv_id: str, user_message: str, fallback: str) -> str:
         logger.warning("Chat with tools failed: {}", exc)
 
     return fallback
+
+
+# ── File Upload for Chat ──
+
+@router.post("/chat/upload")
+async def upload_file_for_chat(file: UploadFile = File(...)):
+    """Upload a file (PDF, image, or text) and return extracted text for chat context.
+
+    Supported formats:
+    - PDF: text extraction via pymupdf
+    - Images (PNG, JPG, GIF, BMP, WEBP): OCR via Tesseract
+    - Text files (.txt, .md, .py, etc.): direct read
+    """
+    try:
+        content = await file.read()
+        filename = file.filename or "upload"
+        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+        # ── PDF ──
+        if ext == "pdf":
+            try:
+                import fitz
+                doc = fitz.open(stream=content, filetype="pdf")
+                pages = [page.get_text() for page in doc]
+                doc.close()
+                text = "\n\n".join(pages)
+                logger.info("Chat upload: PDF '{}' — {} chars, {} pages", filename, len(text), len(pages))
+                return {
+                    "success": True,
+                    "filename": filename,
+                    "type": "pdf",
+                    "text": text[:5000],  # Truncate for LLM context
+                    "char_count": len(text),
+                    "truncated": len(text) > 5000,
+                }
+            except ImportError:
+                return {"success": False, "error": "pymupdf not installed. Run: pip install pymupdf"}
+            except Exception as exc:
+                return {"success": False, "error": f"PDF extraction failed: {exc}"}
+
+        # ── Images (OCR) ──
+        elif ext in ("png", "jpg", "jpeg", "gif", "bmp", "webp"):
+            try:
+                from backend.desktop_capture import ocr_image, _configure_tesseract
+                if not _configure_tesseract():
+                    return {"success": False, "error": "Tesseract-OCR not found. Install from https://github.com/UB-Mannheim/tesseract/wiki"}
+                text = ocr_image(content)
+                logger.info("Chat upload: image '{}' — {} chars OCR", filename, len(text))
+                return {
+                    "success": True,
+                    "filename": filename,
+                    "type": "image",
+                    "text": text[:3000],
+                    "char_count": len(text),
+                    "truncated": len(text) > 3000,
+                }
+            except Exception as exc:
+                return {"success": False, "error": f"OCR failed: {exc}"}
+
+        # ── Text files ──
+        elif ext in ("txt", "md", "py", "js", "ts", "json", "yaml", "yml", "csv", "html", "css", "xml", "log", "ini", "cfg", "toml"):
+            try:
+                text = content.decode("utf-8")
+            except UnicodeDecodeError:
+                text = content.decode("latin-1", errors="replace")
+            logger.info("Chat upload: text '{}' — {} chars", filename, len(text))
+            return {
+                "success": True,
+                "filename": filename,
+                "type": "text",
+                "text": text[:8000],
+                "char_count": len(text),
+                "truncated": len(text) > 8000,
+            }
+
+        else:
+            return {"success": False, "error": f"Unsupported file type: .{ext}. Supported: PDF, images, text files."}
+
+    except Exception as exc:
+        logger.error("Chat upload error: {}", exc)
+        return {"success": False, "error": str(exc)}

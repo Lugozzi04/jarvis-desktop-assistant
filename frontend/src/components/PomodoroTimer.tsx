@@ -6,17 +6,65 @@ interface PomodoroTimerProps {
   onSessionComplete?: (type: TimerState, duration: number) => void;
 }
 
-const FOCUS_MINUTES = 25;
-const SHORT_BREAK_MINUTES = 5;
-const LONG_BREAK_MINUTES = 15;
+const STORAGE_KEY = 'jarvis-pomodoro-settings';
+const DEFAULT_FOCUS = 25;
+const DEFAULT_SHORT_BREAK = 5;
+const DEFAULT_LONG_BREAK = 15;
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return { focus: DEFAULT_FOCUS, shortBreak: DEFAULT_SHORT_BREAK, longBreak: DEFAULT_LONG_BREAK };
+}
+
+function saveSettings(s: { focus: number; shortBreak: number; longBreak: number }) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch {}
+}
+
+// ── Confetti Animation ──
+
+function spawnConfetti(container: HTMLElement) {
+  const colors = ['#6366f1', '#a78bfa', '#22c55e', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899'];
+  const particles: HTMLDivElement[] = [];
+
+  for (let i = 0; i < 60; i++) {
+    const el = document.createElement('div');
+    el.style.cssText = `
+      position: fixed;
+      width: ${Math.random() * 10 + 6}px;
+      height: ${Math.random() * 10 + 6}px;
+      background: ${colors[Math.floor(Math.random() * colors.length)]};
+      left: ${Math.random() * 100}vw;
+      top: -20px;
+      border-radius: ${Math.random() > 0.5 ? '50%' : '2px'};
+      pointer-events: none;
+      z-index: 99999;
+      animation: confetti-fall ${Math.random() * 2 + 2}s ease-out forwards;
+      animation-delay: ${Math.random() * 0.5}s;
+      opacity: 0;
+    `;
+    document.body.appendChild(el);
+    particles.push(el);
+  }
+
+  setTimeout(() => {
+    particles.forEach(el => el.remove());
+  }, 4000);
+}
 
 export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
+  const [settings, setSettings] = useState(loadSettings);
   const [state, setState] = useState<TimerState>('idle');
-  const [timeLeft, setTimeLeft] = useState(FOCUS_MINUTES * 60);
+  const [timeLeft, setTimeLeft] = useState(settings.focus * 60);
   const [sessions, setSessions] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [celebrating, setCelebrating] = useState(false);
   const intervalRef = useRef<number | null>(null);
   const startTimeRef = useRef<number>(0);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   const clearTimer = useCallback(() => {
     if (intervalRef.current) {
@@ -27,12 +75,12 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
 
   const getDuration = useCallback((s: TimerState) => {
     switch (s) {
-      case 'focus': return FOCUS_MINUTES;
-      case 'short_break': return SHORT_BREAK_MINUTES;
-      case 'long_break': return LONG_BREAK_MINUTES;
-      default: return FOCUS_MINUTES;
+      case 'focus': return settings.focus;
+      case 'short_break': return settings.shortBreak;
+      case 'long_break': return settings.longBreak;
+      default: return settings.focus;
     }
-  }, []);
+  }, [settings]);
 
   const startTimer = useCallback((newState: TimerState, duration: number) => {
     clearTimer();
@@ -51,6 +99,10 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
 
           if (newState === 'focus') {
             setSessions(s => s + 1);
+            // Celebration!
+            setCelebrating(true);
+            spawnConfetti(document.body);
+            setTimeout(() => setCelebrating(false), 4000);
           }
           return 0;
         }
@@ -59,15 +111,12 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
     }, 1000);
   }, [clearTimer, onSessionComplete]);
 
-  useEffect(() => {
-    return clearTimer;
-  }, [clearTimer]);
+  useEffect(() => clearTimer, [clearTimer]);
 
   const handleStart = () => {
     if (state === 'idle') {
-      startTimer('focus', FOCUS_MINUTES);
+      startTimer('focus', settings.focus);
     } else {
-      // Resume or restart
       setIsRunning(!isRunning);
       if (!isRunning && timeLeft > 0) {
         startTimeRef.current = Date.now();
@@ -87,14 +136,23 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
     clearTimer();
     setIsRunning(false);
     setState('idle');
-    setTimeLeft(FOCUS_MINUTES * 60);
+    setTimeLeft(settings.focus * 60);
+    setCelebrating(false);
   };
 
   const handleSkipToBreak = () => {
     const isLong = (sessions + 1) % 4 === 0;
     const breakType = isLong ? 'long_break' : 'short_break';
-    const duration = isLong ? LONG_BREAK_MINUTES : SHORT_BREAK_MINUTES;
+    const duration = isLong ? settings.longBreak : settings.shortBreak;
     startTimer(breakType, duration);
+  };
+
+  const handleSaveSettings = (field: string, value: number) => {
+    const clamped = Math.max(1, Math.min(120, value));
+    const newSettings = { ...settings, [field]: clamped };
+    setSettings(newSettings);
+    saveSettings(newSettings);
+    if (state === 'idle') setTimeLeft(newSettings.focus * 60);
   };
 
   const formatTime = (seconds: number) => {
@@ -115,11 +173,88 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
   };
 
   return (
-    <div className="pomodoro-card">
+    <div className="pomodoro-card" ref={cardRef}>
+      {/* Celebration overlay */}
+      {celebrating && (
+        <div className="pomodoro-celebration">
+          <div className="celebration-text">🎉 Sessione Completata!</div>
+          <div className="celebration-sub">{sessions} sessioni oggi</div>
+        </div>
+      )}
+
       <div className="pomodoro-header">
         <span className="pomodoro-state">{stateLabel[state]}</span>
-        <span className="pomodoro-sessions">{sessions} sessioni</span>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span className="pomodoro-sessions">{sessions} sessioni</span>
+          <button
+            className="btn btn-ghost btn-sm"
+            style={{ padding: '2px 6px', fontSize: '0.8rem', borderRadius: 6 }}
+            onClick={() => setShowSettings(!showSettings)}
+            title="Impostazioni timer"
+          >
+            ⚙️
+          </button>
+        </div>
       </div>
+
+      {/* Settings panel */}
+      {showSettings && (
+        <div className="pomodoro-settings">
+          <div className="setting-row">
+            <label>🎯 Focus</label>
+            <div className="setting-input-group">
+              <button onClick={() => handleSaveSettings('focus', settings.focus - 5)}>−5</button>
+              <input
+                type="number"
+                value={settings.focus}
+                min={1} max={120}
+                onChange={e => handleSaveSettings('focus', parseInt(e.target.value) || 25)}
+              />
+              <span>min</span>
+              <button onClick={() => handleSaveSettings('focus', settings.focus + 5)}>+5</button>
+            </div>
+          </div>
+          <div className="setting-row">
+            <label>☕ Pausa</label>
+            <div className="setting-input-group">
+              <button onClick={() => handleSaveSettings('shortBreak', settings.shortBreak - 1)}>−1</button>
+              <input
+                type="number"
+                value={settings.shortBreak}
+                min={1} max={60}
+                onChange={e => handleSaveSettings('shortBreak', parseInt(e.target.value) || 5)}
+              />
+              <span>min</span>
+              <button onClick={() => handleSaveSettings('shortBreak', settings.shortBreak + 1)}>+1</button>
+            </div>
+          </div>
+          <div className="setting-row">
+            <label>🧘 Pausa lunga</label>
+            <div className="setting-input-group">
+              <button onClick={() => handleSaveSettings('longBreak', settings.longBreak - 5)}>−5</button>
+              <input
+                type="number"
+                value={settings.longBreak}
+                min={1} max={120}
+                onChange={e => handleSaveSettings('longBreak', parseInt(e.target.value) || 15)}
+              />
+              <span>min</span>
+              <button onClick={() => handleSaveSettings('longBreak', settings.longBreak + 5)}>+5</button>
+            </div>
+          </div>
+          <button
+            className="btn btn-ghost btn-sm"
+            style={{ marginTop: 8, width: '100%' }}
+            onClick={() => {
+              handleSaveSettings('focus', DEFAULT_FOCUS);
+              handleSaveSettings('shortBreak', DEFAULT_SHORT_BREAK);
+              handleSaveSettings('longBreak', DEFAULT_LONG_BREAK);
+            }}
+          >
+            🔄 Reset default
+          </button>
+        </div>
+      )}
 
       <div className="pomodoro-timer">
         <svg className="pomodoro-ring" viewBox="0 0 120 120">
@@ -163,13 +298,15 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
           border-radius: var(--radius-lg);
           padding: 24px;
           text-align: center;
+          position: relative;
+          overflow: hidden;
         }
 
         .pomodoro-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 16px;
+          margin-bottom: 8px;
         }
 
         .pomodoro-state {
@@ -179,11 +316,75 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
         }
 
         .pomodoro-sessions {
-          font-size: 0.8rem;
+          font-size: 0.75rem;
           color: var(--text-secondary);
           background: var(--bg-hover);
           padding: 4px 10px;
           border-radius: 20px;
+        }
+
+        .pomodoro-settings {
+          background: var(--bg-primary);
+          border: 1px solid var(--border);
+          border-radius: var(--radius);
+          padding: 12px;
+          margin-bottom: 12px;
+          text-align: left;
+        }
+
+        .setting-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 8px;
+          font-size: 0.8rem;
+        }
+
+        .setting-row label {
+          color: var(--text-secondary);
+          min-width: 80px;
+        }
+
+        .setting-input-group {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .setting-input-group input {
+          width: 50px;
+          text-align: center;
+          background: var(--bg-card);
+          border: 1px solid var(--border);
+          border-radius: 6px;
+          color: var(--text-primary);
+          padding: 4px;
+          font-size: 0.8rem;
+          font-family: inherit;
+        }
+
+        .setting-input-group input:focus {
+          outline: none;
+          border-color: var(--accent);
+        }
+
+        .setting-input-group span {
+          color: var(--text-muted);
+          font-size: 0.7rem;
+        }
+
+        .setting-input-group button {
+          background: var(--bg-hover);
+          border: 1px solid var(--border);
+          color: var(--text-secondary);
+          border-radius: 4px;
+          padding: 2px 8px;
+          cursor: pointer;
+          font-size: 0.7rem;
+        }
+        .setting-input-group button:hover {
+          background: var(--bg-card);
+          color: var(--text-primary);
         }
 
         .pomodoro-timer {
@@ -227,6 +428,44 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
           gap: 8px;
           justify-content: center;
           flex-wrap: wrap;
+        }
+
+        .pomodoro-celebration {
+          position: absolute;
+          inset: 0;
+          background: rgba(15, 17, 23, 0.85);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          z-index: 100;
+          border-radius: var(--radius-lg);
+          animation: celebration-pop 0.4s ease-out;
+        }
+
+        .celebration-text {
+          font-size: 1.3rem;
+          font-weight: 700;
+          background: linear-gradient(135deg, var(--accent), #a78bfa, var(--success));
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          margin-bottom: 4px;
+        }
+
+        .celebration-sub {
+          font-size: 0.85rem;
+          color: var(--text-secondary);
+        }
+
+        @keyframes celebration-pop {
+          0% { opacity: 0; transform: scale(0.8); }
+          60% { transform: scale(1.05); }
+          100% { opacity: 1; transform: scale(1); }
+        }
+
+        @keyframes confetti-fall {
+          0% { opacity: 1; transform: translateY(0) rotate(0deg); }
+          100% { opacity: 0; transform: translateY(100vh) rotate(720deg); }
         }
       `}</style>
     </div>
