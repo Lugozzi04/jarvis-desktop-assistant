@@ -62,7 +62,13 @@ body{font-family:'Inter',-apple-system,sans-serif;background:#0f1117;color:#e4e6
 </style>
 </head>
 <body>
-<div class="overlay-header"><span>⚡ JARVIS</span><span style="font-size:0.7rem;color:#5a5d73;margin-left:4px">Ctrl+Shift</span></div>
+<div class="overlay-header"><span>⚡ JARVIS</span><span style="font-size:0.7rem;color:#5a5d73;margin-left:4px">Ctrl+Shift</span>
+<select id="monitorSel" style="margin-left:auto;background:#1a1d2e;border:1px solid #2a2d3e;color:#e4e6f0;padding:4px 8px;border-radius:6px;font-size:0.75rem;cursor:pointer">
+<option value="1">🖥️ Monitor 1</option>
+<option value="2">🖥️ Monitor 2</option>
+<option value="0">🖥️ Tutti</option>
+</select>
+</div>
 <button class="tts-btn" id="ttsBtn" onclick="toggleTTS()" title="Voice OFF — click to hear responses">🔇</button>
 <div class="overlay-input-area">
 <textarea id="q" placeholder="Chiedi a JARVIS... es. 'Cosa significa questo errore?' o 'Riassumi questa pagina'" autofocus></textarea>
@@ -106,13 +112,14 @@ function ask(question){q.value=question;analyze()}
 async function analyze(){
 const question=q.value.trim();
 if(!question){q.focus();return}
+const mon=parseInt(document.getElementById('monitorSel').value)||1;
 go.disabled=true;
 go.textContent='⏳ Analisi...';
 result.classList.remove('show');
 status.innerHTML='<div class="loading"><div class="spinner"></div>Cattura schermo + OCR + AI...</div>';
 
 try{
-const r=await fetch(API+'/api/desktop/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question})});
+const r=await fetch(API+'/api/desktop/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question,monitor:mon})});
 const d=await r.json();
 if(d.success){
 content.innerHTML=d.response;

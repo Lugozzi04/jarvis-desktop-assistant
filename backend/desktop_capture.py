@@ -157,7 +157,7 @@ def capture_and_ocr(monitor: int = 1, language: str = "ita+eng") -> dict[str, An
     }
 
 
-def analyze_screen(user_question: str, model: str | None = None) -> dict[str, Any]:
+def analyze_screen(user_question: str, model: str | None = None, monitor: int = 1) -> dict[str, Any]:
     """Capture screen, OCR, and ask Ollama to analyze it.
 
     This is the full pipeline:
@@ -169,6 +169,7 @@ def analyze_screen(user_question: str, model: str | None = None) -> dict[str, An
     Args:
         user_question: What the user wants to know (e.g., "Cosa significa questo errore?")
         model: Ollama model to use (falls back to configured default)
+        monitor: 1=primary, 2=secondary, 0=all monitors
 
     Returns:
         Dict with 'response', 'ocr_text', 'image_base64', 'success'
@@ -176,7 +177,7 @@ def analyze_screen(user_question: str, model: str | None = None) -> dict[str, An
     from backend.core.config import settings
 
     # 1. Capture + OCR
-    img_bytes = capture_screen(1)
+    img_bytes = capture_screen(monitor)
     if img_bytes is None:
         return {"success": False, "error": "Screen capture failed.", "response": "Impossibile catturare lo schermo."}
 

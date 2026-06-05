@@ -14,6 +14,7 @@ router = APIRouter(tags=["desktop"])
 class AnalyzeRequest(BaseModel):
     question: str
     model: str | None = None
+    monitor: int = 1  # 1=primary, 2=second, 0=all
 
 
 class AnalyzeResponse(BaseModel):
@@ -46,14 +47,17 @@ def analyze_desktop(req: AnalyzeRequest):
     1. Screenshot → OCR → Send to Ollama with user's question
     2. Returns AI analysis of what's on screen
 
+    Parameters:
+        monitor: 1=primary monitor, 2=secondary, 0=all monitors
+
     Example questions:
     - "Cosa significa questo errore?"
     - "Riassumi questa pagina"
     - "Traduci questo paragrafo"
     - "Cosa fa questo codice?"
     """
-    logger.info("Desktop analyze: '{}'", req.question[:100])
-    result = analyze_screen(req.question, req.model)
+    logger.info("Desktop analyze: '{}' (monitor {})", req.question[:100], req.monitor)
+    result = analyze_screen(req.question, req.model, req.monitor)
     return AnalyzeResponse(**result)
 
 
