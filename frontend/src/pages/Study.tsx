@@ -21,14 +21,14 @@ export default function Study() {
   // Flashcards
   const [flashcardIndex, setFlashcardIndex] = useState(0);
   const [showBack, setShowBack] = useState(false);
-  const [fcCount] = useState(10);
+  const [fcCount] = useState(20);
 
   // Quiz
   const [quizIndex, setQuizIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [quizAnswered, setQuizAnswered] = useState(false);
   const [quizScore, setQuizScore] = useState({ correct: 0, total: 0 });
-  const [quizCount] = useState(5);
+  const [quizCount] = useState(20);
 
   // Session stats
   const [sessionStats, setSessionStats] = useState({ sessions: 0, focusMinutes: 0 });
@@ -99,7 +99,10 @@ export default function Study() {
     if (!currentMaterial) return;
     setLoading(true);
     try {
-      await api.generateSummary(currentMaterial.id);
+      const model = localStorage.getItem('jarvis_selected_model');
+      // Use fetch directly to pass model query param
+      const url = `http://localhost:8400/api/study/materials/${currentMaterial.id}/summarize${model ? `?model=${encodeURIComponent(model)}` : ''}`;
+      await fetch(url, { method: 'POST' });
       await openMaterial(currentMaterial.id);
     } catch (e: any) { setError(e.message); }
     finally { setLoading(false); }
@@ -109,7 +112,12 @@ export default function Study() {
     if (!currentMaterial) return;
     setLoading(true);
     try {
-      await api.generateFlashcards(currentMaterial.id, fcCount);
+      const model = localStorage.getItem('jarvis_selected_model');
+      await fetch(`http://localhost:8400/api/study/materials/${currentMaterial.id}/flashcards`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count: fcCount, model: model || null }),
+      });
       await openMaterial(currentMaterial.id);
       setFlashcardIndex(0);
       setShowBack(false);
@@ -122,7 +130,12 @@ export default function Study() {
     if (!currentMaterial) return;
     setLoading(true);
     try {
-      await api.generateQuiz(currentMaterial.id, quizCount);
+      const model = localStorage.getItem('jarvis_selected_model');
+      await fetch(`http://localhost:8400/api/study/materials/${currentMaterial.id}/quiz`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count: quizCount, model: model || null }),
+      });
       await openMaterial(currentMaterial.id);
       setQuizIndex(0);
       setSelectedOption(null);

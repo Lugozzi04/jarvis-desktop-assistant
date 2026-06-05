@@ -1,4 +1,7 @@
-"""Study API — upload, summarize, flashcards, quiz, spaced repetition."""
+"""Study API — upload, summarize, flashcards, quiz, spaced repetition.
+
+v2.0: Model override support, increased defaults.
+"""
 
 from __future__ import annotations
 
@@ -20,6 +23,7 @@ class TextUploadRequest(BaseModel):
 
 class GenerateRequest(BaseModel):
     count: int = 10
+    model: str | None = None  # Model override
 
 
 class ReviewRequest(BaseModel):
@@ -28,7 +32,8 @@ class ReviewRequest(BaseModel):
 
 
 class QuizGenerateRequest(BaseModel):
-    count: int = 5
+    count: int = 20  # Default: 20 questions (was 5!)
+    model: str | None = None  # Model override
 
 
 # ── Materials ──
@@ -84,23 +89,35 @@ def upload_text(req: TextUploadRequest):
 # ── AI Processing ──
 
 @router.post("/study/materials/{material_id}/summarize")
-def generate_summary(material_id: str):
-    """Generate an AI summary of the study material."""
-    return study_engine.generate_summary(material_id)
+def generate_summary(material_id: str, model: str | None = None):
+    """Generate an AI summary of the study material.
+    
+    Optional query param: ?model=mistral:7b to override the default model.
+    """
+    return study_engine.generate_summary(material_id, model_override=model)
 
 
 @router.post("/study/materials/{material_id}/flashcards")
 def generate_flashcards(material_id: str, req: GenerateRequest | None = None):
-    """Generate flashcards for a study material."""
+    """Generate flashcards for a study material.
+    
+    Body: {"count": 20, "model": "mistral:7b"} (model is optional)
+    """
     count = req.count if req else 10
-    return study_engine.generate_flashcards(material_id, count)
+    model = req.model if req else None
+    return study_engine.generate_flashcards(material_id, count, model_override=model)
 
 
 @router.post("/study/materials/{material_id}/quiz")
 def generate_quiz(material_id: str, req: QuizGenerateRequest | None = None):
-    """Generate multiple-choice quiz questions."""
-    count = req.count if req else 5
-    return study_engine.generate_quiz(material_id, count)
+    """Generate multiple-choice quiz questions.
+    
+    Body: {"count": 20, "model": "deepseek-r1:8b"} (model is optional)
+    Default count is now 20 (was 5).
+    """
+    count = req.count if req else 20
+    model = req.model if req else None
+    return study_engine.generate_quiz(material_id, count, model_override=model)
 
 
 # ── Spaced Repetition ──
