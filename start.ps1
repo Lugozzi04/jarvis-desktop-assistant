@@ -115,6 +115,15 @@ try {
 }
 
 try {
+    $r = & .\.venv\Scripts\python.exe -c "import pynput; print('ok')" 2>&1
+    if ($r -eq "ok") { Write-Host "   ⌨️  pynput ready — global hotkey enabled" -ForegroundColor Green }
+} catch {
+    Write-Host "   ⚠️  pynput not found — installing..." -ForegroundColor Yellow
+    & .\.venv\Scripts\python.exe -m pip install -q pynput
+    Write-Host "   ✅ pynput installed" -ForegroundColor Green
+}
+
+try {
     $r = & .\.venv\Scripts\python.exe -c "import pytesseract; print('ok')" 2>&1
     if ($r -eq "ok") { Write-Host "   🔤 pytesseract ready — OCR enabled" -ForegroundColor Green }
 } catch {
