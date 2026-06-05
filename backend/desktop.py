@@ -110,6 +110,8 @@ class WindowHotkey(threading.Thread):
             from pynput import keyboard
             from pynput.keyboard import Key
 
+            print("⌨️  Hotkey listener started (Ctrl+Shift to open overlay)")
+
             mapping = {
                 Key.ctrl_l: "ctrl", Key.ctrl_r: "ctrl",
                 Key.alt_l: "alt", Key.alt_r: "alt",
@@ -147,7 +149,10 @@ class WindowHotkey(threading.Thread):
                     time.sleep(0.2)
                 listener.stop()
         except ImportError:
-            pass
+            print("⚠️  pynput not installed — hotkey disabled in windowed mode")
+            print("   Install: pip install pynput")
+        except Exception as exc:
+            print(f"⚠️  Hotkey error: {exc}")
 
 
 def main():
@@ -172,7 +177,6 @@ def main():
     # Hotkey (Ctrl+Shift to open overlay even in windowed mode)
     hotkey = WindowHotkey()
     hotkey.start()
-    print("⌨️  Ctrl+Shift — overlay quick analyze")
 
     print(f"🖥️  Opening Jarvis window ({URL})...")
     print("   Close the window to exit.")
