@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { api } from '../api';
 
 type ModifierKey = 'ctrl' | 'alt' | 'shift' | 'cmd';
 
