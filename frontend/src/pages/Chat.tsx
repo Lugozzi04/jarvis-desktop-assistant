@@ -46,6 +46,10 @@ function Chat() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
+  // TTS (text-to-speech) — muted by default
+  const [ttsEnabled, setTtsEnabled] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   useEffect(() => { loadConversations(); }, []);
   useEffect(() => {
     const cmd = searchParams.get('cmd');
@@ -127,6 +131,24 @@ function Chat() {
   };
 
   // ── Voice ──
+
+  const playTTS = async (text: string) => {
+    if (!ttsEnabled || !text) return;
+    // Strip markdown for cleaner speech
+    const cleanText = text.replace(/\*\*/g, '').replace(/\*/g, '').replace(/_/g, '').replace(/`/g, '').replace(/#/g, '');
+    const url = `${API}/api/voice/speak-stream?text=${encodeURIComponent(cleanText)}`;
+    try {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      await audio.play();
+    } catch (e) {
+      // TTS might not be available — fail silently
+    }
+  };
 
   const startRecording = async () => {
     try {
@@ -213,6 +235,7 @@ function Chat() {
         ? await api.command(msg, cid || undefined)
         : await api.chat(msg, cid || undefined);
       addMessage('assistant', formatResult(res));
+      if (ttsEnabled) playTTS(res.response);
       if (res.intent) {
         addMessage('system', `Intent: ${res.intent.kind} → ${res.intent.skill || '?'}.${res.intent.action || '?'} (${(res.intent.confidence * 100).toFixed(0)}%)`);
       }
@@ -344,6 +367,18 @@ function Chat() {
               onClick={recording ? stopRecording : startRecording} disabled={loading || transcribing}
               title={recording ? 'Stop recording' : 'Voice input (Whisper)'}>
               {recording ? '⏹' : transcribing ? '⏳' : '🎤'}
+            </button>
+            <button className={`btn ${ttsEnabled ? 'btn-accent' : 'btn-secondary'}`}
+              style={{ padding: '6px 10px', fontSize: '1.1rem', flexShrink: 0, borderRadius: 10, background: ttsEnabled ? 'var(--accent)' : undefined, color: ttsEnabled ? 'white' : undefined }}
+              onClick={() => {
+                setTtsEnabled(!ttsEnabled);
+                if (ttsEnabled && audioRef.current) {
+                  audioRef.current.pause();
+                  audioRef.current = null;
+                }
+              }}
+              title={ttsEnabled ? 'Voice ON — click to mute' : 'Voice OFF — click to hear responses'}>
+              {ttsEnabled ? '🔊' : '🔇'}
             </button>
             <button className="btn btn-primary" onClick={() => sendMessage()} disabled={loading || transcribing || !input.trim()}
               style={{ padding: '6px 18px', borderRadius: 10, fontSize: '0.9rem', flexShrink: 0 }}>Send</button>

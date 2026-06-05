@@ -54,13 +54,34 @@ async def transcribe_audio(file: UploadFile = File(...)):
 
 @router.post("/voice/speak")
 async def speak_text(request: SpeakRequest):
-    """Convert text to speech."""
+    """Convert text to speech and return audio file URL."""
     try:
         from backend.voice.gateway import voice_gateway
         result = await voice_gateway.synthesize(request.text, request.voice)
         return result.model_dump()
     except Exception as exc:
         return {"success": False, "provider": "none", "error": str(exc)}
+
+
+@router.get("/voice/speak-stream")
+async def speak_text_stream(text: str, voice: str | None = None):
+    """Convert text to speech and stream audio directly (for <audio> elements).
+
+    Usage: <audio src="/api/voice/speak-stream?text=Hello+world" autoplay></audio>
+    """
+    try:
+        from backend.voice.gateway import voice_gateway
+        result = await voice_gateway.synthesize(text, voice)
+        if result.success and result.audio_data:
+            from fastapi.responses import Response
+            return Response(
+                content=result.audio_data,
+                media_type="audio/mpeg",
+                headers={"Content-Disposition": "inline"},
+            )
+        return {"success": False, "error": result.error or "TTS failed"}
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
 
 
 @router.post("/voice/command")

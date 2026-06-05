@@ -27,14 +27,19 @@ from backend.voice.providers.base import STTProvider, TranscriptionResult
 class FasterWhisperProvider(STTProvider):
     """Faster-Whisper speech-to-text provider.
 
-    Does NOT download models on import — only when first used.
-    Reports clear errors if not installed.
+    Optimized for speed:
+    - Default model: 'tiny' (~75 MB, very fast, still accurate for Italian/English)
+    - beam_size=1 (greedy decoding, faster than beam search)
+    - VAD filter enabled (skips silence)
+    - int8 quantization on CPU
+
+    To switch to a larger model, set JARVIS_STT_MODEL=base/small/medium in .env
     """
 
     name = "faster_whisper"
 
-    def __init__(self, model_size: str = "base", device: str = "cpu"):
-        self.model_size = model_size or getattr(settings, "stt_model", "base")
+    def __init__(self, model_size: str = "tiny", device: str = "cpu"):
+        self.model_size = model_size or getattr(settings, "stt_model", "tiny")
         self.device = device or getattr(settings, "stt_device", "cpu")
         self._model = None
 
@@ -59,17 +64,24 @@ class FasterWhisperProvider(STTProvider):
                 "faster-whisper is not installed. "
                 "Install it on your local PC:\n"
                 "  pip install faster-whisper\n\n"
-                "Model will be downloaded automatically on first use (~150 MB for 'base')."
+                "Model will be downloaded automatically on first use (~75 MB for 'tiny')."
             )
         except Exception as exc:
             raise RuntimeError(f"Failed to load Faster-Whisper model: {exc}")
 
     async def transcribe_file(self, file_path: str) -> TranscriptionResult:
-        """Transcribe an audio file using Faster-Whisper."""
+        """Transcribe an audio file using Faster-Whisper (optimized for speed)."""
         try:
             self._load_model()
 
-            segments, info = self._model.transcribe(file_path, beam_size=5)
+            segments, info = self._model.transcribe(
+                file_path,
+                beam_size=1,           # Greedy — much faster than beam=5
+                vad_filter=True,       # Skip silence
+                vad_parameters=dict(
+                    min_silence_duration_ms=500,
+                ),
+            )
             text = " ".join([s.text for s in segments])
 
             return TranscriptionResult(

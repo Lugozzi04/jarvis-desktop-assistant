@@ -56,10 +56,14 @@ body{font-family:'Inter',-apple-system,sans-serif;background:#0f1117;color:#e4e6
 .loading{display:flex;align-items:center;justify-content:center;gap:8px;padding:20px;color:#8b8fa3}
 .spinner{width:16px;height:16px;border:2px solid #2a2d3e;border-top-color:#6366f1;border-radius:50%;animation:s .6s linear infinite}
 @keyframes s{to{transform:rotate(360deg)}}
+.tts-btn{position:absolute;top:12px;right:60px;width:36px;height:36px;border-radius:50%;border:1px solid #2a2d3e;background:#1a1d2e;color:#8b8fa3;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;z-index:10}
+.tts-btn:hover{background:#232740;border-color:#6366f1}
+.tts-btn.active{background:#6366f1;border-color:#6366f1;color:#fff}
 </style>
 </head>
 <body>
 <div class="overlay-header"><span>⚡ JARVIS</span><span style="font-size:0.7rem;color:#5a5d73;margin-left:4px">Alt+Spazio</span></div>
+<button class="tts-btn" id="ttsBtn" onclick="toggleTTS()" title="Voice OFF — click to hear responses">🔇</button>
 <div class="overlay-input-area">
 <textarea id="q" placeholder="Chiedi a JARVIS... es. 'Cosa significa questo errore?' o 'Riassumi questa pagina'" autofocus></textarea>
 <div class="quick-actions">
@@ -83,6 +87,18 @@ const result=document.getElementById('result');
 const content=document.getElementById('resultContent');
 const status=document.getElementById('status');
 
+// TTS toggle
+let ttsOn=false;
+const ttsBtn=document.getElementById('ttsBtn');
+let ttsAudio=null;
+
+function toggleTTS(){
+ttsOn=!ttsOn;
+if(ttsOn){ttsBtn.textContent='🔊';ttsBtn.classList.add('active');ttsBtn.title='Voice ON — click to mute'}
+else{ttsBtn.textContent='🔇';ttsBtn.classList.remove('active');ttsBtn.title='Voice OFF — click to hear responses';
+if(ttsAudio){ttsAudio.pause();ttsAudio=null}}
+}
+
 q.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();analyze()}});
 
 function ask(question){q.value=question;analyze()}
@@ -102,6 +118,13 @@ if(d.success){
 content.innerHTML=d.response;
 result.classList.add('show');
 status.textContent='✅ Analisi completata';
+// TTS: read response aloud if enabled
+if(ttsOn&&d.response){
+const t=d.response.replace(/\\*\\*/g,'').replace(/\\*/g,'').replace(/_/g,'').replace(/`/g,'');
+if(ttsAudio){ttsAudio.pause();ttsAudio=null}
+ttsAudio=new Audio(API+'/api/voice/speak-stream?text='+encodeURIComponent(t));
+ttsAudio.play().catch(()=>{})
+}
 }else{
 content.innerHTML='<div class="error">❌ '+d.response+'</div>';
 result.classList.add('show');
